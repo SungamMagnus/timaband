@@ -32,8 +32,15 @@ add_subdirectory("${JUCE_DIR}" "${CMAKE_BINARY_DIR}/JUCE" EXCLUDE_FROM_ALL)
 
 set(TIMABAND_SOURCES
     Source/PluginProcessor.cpp
+    Source/PluginEditor.cpp
     Source/Parameters.cpp
-    Source/dsp/Engine.cpp)
+    Source/dsp/Engine.cpp
+    Source/ui/BandPanel.cpp
+    Source/ui/Controls.cpp
+    Source/ui/CrossoverDisplay.cpp
+    Source/ui/LookAndFeel.cpp
+    Source/ui/MeterPanel.cpp
+    Source/ui/Spectrum.cpp)
 
 # PRODUCT_NAME stays ASCII: it names the bundle and the target. PLUGIN_NAME is
 # what the host lists.
@@ -78,9 +85,12 @@ target_link_libraries(Timaband
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
 
-# Dev tool: runs the Engine offline against the checks in tools/dsp_check.cpp
-# without a plug-in wrapper or a host. -DTIMABAND_TOOLS=ON
-option(TIMABAND_TOOLS "Build the offline DSP checker" OFF)
+# Dev tools, -DTIMABAND_TOOLS=ON:
+#   dsp_check   runs the Engine offline against the checks in tools/dsp_check.cpp,
+#               without a plug-in wrapper or a host.
+#   panel_shot  renders the real editor, fed with synthetic drums, to docs/*.png.
+#   ui_check    drives the editor's controls headlessly and checks what they do.
+option(TIMABAND_TOOLS "Build the offline DSP checker and the editor renderer" OFF)
 if(TIMABAND_TOOLS)
     juce_add_console_app(dsp_check PRODUCT_NAME "dsp_check" NEEDS_CURL FALSE)
     target_sources(dsp_check PRIVATE tools/dsp_check.cpp Source/dsp/Engine.cpp)
@@ -90,6 +100,37 @@ if(TIMABAND_TOOLS)
     target_include_directories(dsp_check PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
     target_link_libraries(dsp_check
         PRIVATE
+            juce::juce_dsp
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_warning_flags)
+
+    juce_add_console_app(panel_shot PRODUCT_NAME "panel_shot" NEEDS_CURL FALSE)
+    target_sources(panel_shot PRIVATE tools/panel_shot.cpp ${TIMABAND_SOURCES})
+    target_compile_definitions(panel_shot PRIVATE
+        JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0
+        JUCE_STANDALONE_APPLICATION=1 JUCE_MODAL_LOOPS_PERMITTED=1
+        JucePlugin_Name="Timaband"
+        TIMABAND_DOCS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/docs")
+    target_include_directories(panel_shot PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
+    target_link_libraries(panel_shot
+        PRIVATE
+            juce::juce_audio_utils
+            juce::juce_dsp
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_warning_flags)
+
+    juce_add_console_app(ui_check PRODUCT_NAME "ui_check" NEEDS_CURL FALSE)
+    target_sources(ui_check PRIVATE tools/ui_check.cpp ${TIMABAND_SOURCES})
+    target_compile_definitions(ui_check PRIVATE
+        JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0
+        JUCE_STANDALONE_APPLICATION=1 JUCE_MODAL_LOOPS_PERMITTED=1
+        JucePlugin_Name="Timaband")
+    target_include_directories(ui_check PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
+    target_link_libraries(ui_check
+        PRIVATE
+            juce::juce_audio_utils
             juce::juce_dsp
         PUBLIC
             juce::juce_recommended_config_flags

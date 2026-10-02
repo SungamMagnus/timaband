@@ -21,6 +21,7 @@ extern const juce::String sustain[numBands];
 extern const juce::String curve[numBands];
 extern const juce::String mute[numBands];
 extern const juce::String solo[numBands];
+extern const juce::String bandBypass[numBands];   // band plays unshaped (unlike mute)
 
 extern const juce::String inputGain;
 extern const juce::String outputGain;
@@ -37,10 +38,12 @@ namespace uiState
 extern const juce::Identifier selectedBand;     // int 0..2, default 1
 extern const juce::Identifier analyzerPost;     // bool, default true
 extern const juce::Identifier linkBands;        // bool, default false
+extern const juce::Identifier editorScale;      // double, window size relative to the 1120 x 640 design, 0.6..1.5
 
 constexpr int  defaultSelectedBand = 1;
 constexpr bool defaultAnalyzerPost = true;
 constexpr bool defaultLinkBands    = false;
+constexpr double defaultEditorScale = 1.0;
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout createLayout();

@@ -40,6 +40,8 @@ in ─► input gain ─► LR4 3-band split ─┬─ low  ─► shaper ─►
 - **Lookahead** (3 ms when on): the band audio is delayed, the detector is not.
   Latency is reported with `setLatencySamples`.
 - **Mute / solo**: 5 ms gain ramps. A band is audible if `anySolo ? solo : !mute`.
+- **Band bypass**: scales that band's shaping gain toward 0 dB over 10 ms. The detector keeps
+  running, and a fully bypassed band is bit-identical to the same band at zero shaping.
 - **Delta**: outputs `Σ (g_b − 1) · band_b` — what the shaper adds or removes.
   It nulls at zero settings because it subtracts the summed crossover output, not the raw input.
 - **Bypass**: exposed as the host bypass parameter. Crossfades (10 ms) to the input,
@@ -56,8 +58,9 @@ in ─► input gain ─► LR4 3-band split ─┬─ low  ─► shaper ─►
 | `{band}Curve` | {Band} Curve | Exponential, Linear, Logarithmic | Linear | choice |
 | `{band}Mute` | {Band} Mute | bool | off | |
 | `{band}Solo` | {Band} Solo | bool | off | |
-| `inputGain` | Input Gain | −24 – +24 dB, step 0.1 | 0 | |
-| `outputGain` | Output Gain | −24 – +24 dB, step 0.1 | 0 | |
+| `{band}Bypass` | {Band} Bypass | bool | off | band plays unshaped (10 ms crossfade); unlike mute |
+| `inputGain` | Input Gain | −24 – +24 dB, step 0.1 | 0 | fader on the IN meters |
+| `outputGain` | Output Gain | −24 – +24 dB, step 0.1 | 0 | fader on the OUT meters |
 | `lookahead` | Lookahead | bool | on | changes latency |
 | `stereoLink` | Stereo Link | bool | on | |
 | `delta` | Delta | bool | off | |

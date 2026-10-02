@@ -6,6 +6,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "Parameters.h"
+#include "dsp/Analysis.h"
 #include "dsp/Engine.h"
 
 class TimabandProcessor final : public juce::AudioProcessor
@@ -44,6 +45,11 @@ public:
     timaband::Engine& getEngine() noexcept             { return engine; }
     const timaband::Engine& getEngine() const noexcept { return engine; }
 
+    // Mono mix of the input (pre) or output (post), for the spectrum analyzer.
+    timaband::SampleFifo& getAnalyzerFifo (bool post) noexcept { return post ? postFifo : preFifo; }
+    timaband::LevelMeter& getInputMeter() noexcept             { return inputMeter; }
+    timaband::LevelMeter& getOutputMeter() noexcept            { return outputMeter; }
+
     juce::AudioProcessorValueTreeState apvts;
 
 private:
@@ -54,14 +60,19 @@ private:
         std::atomic<float>* curve   = nullptr;
         std::atomic<float>* mute    = nullptr;
         std::atomic<float>* solo    = nullptr;
+        std::atomic<float>* bypass  = nullptr;
     };
 
     timaband::Settings gather() const;
+
+    static void pushMono (timaband::SampleFifo&, const juce::AudioBuffer<float>&, int numChannels) noexcept;
 
     // Fills in whichever UI properties the state tree lacks (a fresh instance or an older preset).
     void applyUiStateDefaults();
 
     timaband::Engine engine;
+    timaband::SampleFifo preFifo, postFifo;
+    timaband::LevelMeter inputMeter, outputMeter;
 
     std::atomic<float>* xover1 = nullptr;
     std::atomic<float>* xover2 = nullptr;

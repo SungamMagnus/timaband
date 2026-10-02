@@ -24,6 +24,7 @@ const juce::String sustain[numBands] = { "lowSustain", "midSustain", "highSustai
 const juce::String curve[numBands]   = { "lowCurve",   "midCurve",   "highCurve" };
 const juce::String mute[numBands]    = { "lowMute",    "midMute",    "highMute" };
 const juce::String solo[numBands]    = { "lowSolo",    "midSolo",    "highSolo" };
+const juce::String bandBypass[numBands] = { "lowBypass", "midBypass", "highBypass" };
 
 const juce::String inputGain  = "inputGain";
 const juce::String outputGain = "outputGain";
@@ -38,6 +39,7 @@ namespace uiState
 const juce::Identifier selectedBand ("selectedBand");
 const juce::Identifier analyzerPost ("analyzerPost");
 const juce::Identifier linkBands ("linkBands");
+const juce::Identifier editorScale ("editorScale");
 }
 
 /* ── Readouts ────────────────────────────────────────────────────────────── */
@@ -129,6 +131,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
 
         layout.add (makeBool (pid::mute[b], band + " Mute", false));
         layout.add (makeBool (pid::solo[b], band + " Solo", false));
+        layout.add (makeBool (pid::bandBypass[b], band + " Bypass", false));
     }
 
     const Range gainRange (-24.0f, 24.0f, 0.1f);

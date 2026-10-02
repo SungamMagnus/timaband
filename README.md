@@ -9,8 +9,10 @@ the transient itself, and a delta mode lets you hear only what the shaper is
 adding or removing.
 
 The build plan, signal flow and full parameter table are in
-[`docs/PLAN.md`](docs/PLAN.md). Only the DSP and a generic editor exist so far;
-the custom UI is a later phase (see the plan).
+[`docs/PLAN.md`](docs/PLAN.md). The editor is a port of
+[`docs/ui-mockup.html`](docs/ui-mockup.html): a 1120 x 640 design scaled by a
+single transform (0.6x to 1.5x), with a live spectrum analyzer, level meters and
+per-band gain meters. Presets and undo come in a later phase.
 
 ## Build
 
@@ -46,6 +48,21 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DTIMABAND_TOOLS=ON
 cmake --build build --config Release --target dsp_check -j8
 
 ./build/dsp_check_artefacts/Release/dsp_check
+```
+
+### Editor renders and checks
+
+`panel_shot` renders the real editor, fed with synthetic drum audio, to
+`docs/panel.png` (the mockup's default state), `docs/panel-solo.png` (mid soloed,
+high muted) and `docs/panel-bypass.png` (low band bypassed). `ui_check` drives the
+editor's controls headlessly and checks the parameter gestures, link bands, the
+crossover handles, the gain faders and the spectrum maths.
+
+```sh
+cmake --build build --config Release --target panel_shot ui_check -j8
+
+./build/panel_shot_artefacts/Release/panel_shot
+./build/ui_check_artefacts/Release/ui_check
 ```
 
 ## Validate

@@ -45,6 +45,8 @@ void Engine::prepare (double newSampleRate, int maxBlockSize, int newNumChannels
     bypassMix.reset (sampleRate, 0.01);
     for (auto& gate : bandGate)
         gate.reset (sampleRate, 0.005);
+    for (auto& shape : bandShape)
+        shape.reset (sampleRate, 0.01);
 
     reset();
 }
@@ -103,6 +105,7 @@ void Engine::setTargets (const Settings& settings, bool snap) noexcept
     {
         const auto& band = settings.bands[b];
         set (bandGate[b], (anySolo ? band.solo : ! band.mute) ? 1.0f : 0.0f);
+        set (bandShape[b], band.bypass ? 0.0f : 1.0f);
     }
 
     latency = latencyFor (sampleRate, settings.lookahead);
@@ -203,9 +206,15 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const Settings& settings
                     }
                 }
 
+                // Bypass scales the shaping toward 0 dB. The shaper keeps running so its
+                // envelopes are current when the band comes back; at 0 the band is bit-exact unshaped.
+                const auto shape = bandShape[b].getNextValue();
+
                 for (int c = 0; c < chans; ++c)
                 {
                     const auto ci      = (size_t) c;
+                    gainDb[ci] *= shape;
+
                     const auto delayed = bandDelay[b][ci].process (bands[b][ci], latency) * gate;
                     const auto shaped  = delayed * dbToGain (gainDb[ci]);
 

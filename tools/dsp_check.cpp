@@ -881,6 +881,51 @@ void checkUnlinkedStereo()
     }
 }
 
+/* ── i. Band bypass ───────────────────────────────────────────────────────── */
+
+// A bypassed band must sound exactly like the same band with zero shaping, while
+// still playing (unlike mute).
+void checkBandBypass()
+{
+    section ("i. Band bypass (drum hits, other bands shaping, lookahead on)");
+
+    constexpr double sampleRate = 48000.0;
+    const auto total = (int) sampleRate;
+    const auto in = dual (drumHits (total, sampleRate, { 2400, 26400 }));
+
+    const auto shaped = [] { auto s = bandsAt (12.0f, -12.0f, Curve::linear); s.lookahead = true; return s; };
+
+    const std::array<const char*, Engine::numBands> bandNames { "low", "mid", "high" };
+
+    for (int b = 0; b < Engine::numBands; ++b)
+    {
+        auto bypassed = shaped();
+        bypassed.bands[(size_t) b].bypass = true;
+
+        auto zeroed = shaped();
+        zeroed.bands[(size_t) b].attackDb = zeroed.bands[(size_t) b].sustainDb = 0.0f;
+
+        const auto a = render (sampleRate, 512, in, bypassed);
+        const auto z = render (sampleRate, 512, in, zeroed);
+        const auto diff = std::max (maxDifference (a.out[0], z.out[0]), maxDifference (a.out[1], z.out[1]));
+
+        verdict (juce::exactlyEqual (diff, 0.0), fmt ("%s bypassed equals %s at zero shaping", bandNames[(size_t) b], bandNames[(size_t) b]),
+                 fmt ("max |difference| = %g (must be 0)", diff));
+    }
+
+    auto allBypassed = shaped();
+    for (auto& band : allBypassed.bands)
+        band.bypass = true;
+
+    const auto a = render (sampleRate, 512, in, allBypassed);
+    const auto z = render (sampleRate, 512, in, zeroSettings (true));
+    const auto diff = std::max (maxDifference (a.out[0], z.out[0]), maxDifference (a.out[1], z.out[1]));
+
+    verdict (juce::exactlyEqual (diff, 0.0), "all bands bypassed equals zero settings",
+             fmt ("max |difference| = %g (must be 0); output peak %s, so the bands still play",
+                  diff, dbfs (peakOf (a.out[0], 0, total)).c_str()));
+}
+
 } // namespace
 
 int main()
@@ -897,6 +942,7 @@ int main()
     checkCurves();
     checkRobustness();
     checkUnlinkedStereo();
+    checkBandBypass();
 
     std::printf ("\n%d of %d checks passed\n", checksRun - failures, checksRun);
     return failures == 0 ? 0 : 1;

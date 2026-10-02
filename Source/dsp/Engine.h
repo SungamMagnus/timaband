@@ -18,6 +18,7 @@ struct BandSettings
     Curve curve     = Curve::linear;
     bool  mute      = false;
     bool  solo      = false;
+    bool  bypass    = false;   // band still plays, unshaped
 };
 
 struct Settings
@@ -101,7 +102,7 @@ private:
 
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Multiplicative> xover1, xover2;
     juce::SmoothedValue<float> inputGain, outputGain, bypassMix;
-    std::array<juce::SmoothedValue<float>, numBands> bandGate;
+    std::array<juce::SmoothedValue<float>, numBands> bandGate, bandShape;
 
     std::array<std::atomic<float>, numBands> meterGainDb {}, meterTransient {};
 };

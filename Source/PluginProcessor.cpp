@@ -1,5 +1,7 @@
 #include "PluginProcessor.h"
 
+#include "PluginEditor.h"
+
 using namespace timaband;
 
 static_assert (numBands == Engine::numBands, "parameter bands must match the engine's");
@@ -41,6 +43,7 @@ TimabandProcessor::TimabandProcessor()
         band.curve   = raw (apvts, pid::curve[b]);
         band.mute    = raw (apvts, pid::mute[b]);
         band.solo    = raw (apvts, pid::solo[b]);
+        band.bypass  = raw (apvts, pid::bandBypass[b]);
     }
 
     inputGain  = raw (apvts, pid::inputGain);
@@ -87,6 +90,7 @@ Settings TimabandProcessor::gather() const
         band.curve     = (Curve) juce::jlimit (0, 2, juce::roundToInt (get (p.curve)));
         band.mute      = isOn (p.mute);
         band.solo      = isOn (p.solo);
+        band.bypass    = isOn (p.bypass);
     }
 
     s.inputGainDb  = get (inputGain);
@@ -106,16 +110,53 @@ void TimabandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     for (int c = getTotalNumInputChannels(); c < getTotalNumOutputChannels(); ++c)
         buffer.clear (c, 0, buffer.getNumSamples());
 
+    const auto numIn  = getTotalNumInputChannels();
+    const auto numOut = getTotalNumOutputChannels();
+
+    inputMeter.measure (buffer, numIn);
+    pushMono (preFifo, buffer, numIn);
+
     engine.process (buffer, gather());
+
+    outputMeter.measure (buffer, numOut);
+    pushMono (postFifo, buffer, numOut);
 
     // The engine's latency follows the lookahead switch, so the host needs telling when it moves.
     if (engine.getLatencySamples() != getLatencySamples())
         setLatencySamples (engine.getLatencySamples());
 }
 
+void TimabandProcessor::pushMono (SampleFifo& fifo, const juce::AudioBuffer<float>& buffer, int numChannels) noexcept
+{
+    const auto chans = juce::jmin (numChannels, buffer.getNumChannels());
+    if (chans == 0)
+        return;
+
+    const auto scale = 1.0f / (float) chans;
+    std::array<float, 256> mono;
+
+    for (int start = 0; start < buffer.getNumSamples(); start += (int) mono.size())
+    {
+        const auto n = juce::jmin ((int) mono.size(), buffer.getNumSamples() - start);
+        std::fill (mono.begin(), mono.begin() + n, 0.0f);
+
+        for (int c = 0; c < chans; ++c)
+        {
+            const auto* data = buffer.getReadPointer (c, start);
+            for (int i = 0; i < n; ++i)
+                mono[(size_t) i] += data[i];
+        }
+
+        for (int i = 0; i < n; ++i)
+            mono[(size_t) i] *= scale;
+
+        fifo.push (mono.data(), n);
+    }
+}
+
 juce::AudioProcessorEditor* TimabandProcessor::createEditor()
 {
-    return new juce::GenericAudioProcessorEditor (*this);
+    return new TimabandEditor (*this);
 }
 
 void TimabandProcessor::applyUiStateDefaults()
