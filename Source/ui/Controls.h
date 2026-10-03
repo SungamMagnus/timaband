@@ -38,6 +38,26 @@ private:
     int band;
 };
 
+// A round button with a drawn glyph: undo and redo in the header, and the previous/next
+// triangles of the preset pill. Disabled it is drawn faint.
+class IconButton final : public FocusVisible<juce::Button>
+{
+public:
+    enum class Icon { undo, redo, previous, next };
+
+    IconButton (Icon, const juce::String& title);
+
+    void paintButton (juce::Graphics&, bool highlighted, bool down) override;
+
+    bool hitTest (int x, int y) override;
+
+    juce::Rectangle<float> getFocusRingBounds() const override { return getLocalBounds().toFloat(); }
+    float getFocusRingRadius() const override { return (float) getWidth() * 0.5f; }
+
+private:
+    Icon icon;
+};
+
 // Two or more labelled segments inside one outline; exactly one is selected.
 class SegmentedControl final : public juce::Component
 {
@@ -78,6 +98,7 @@ public:
     void mouseDown (const juce::MouseEvent&) override;
     void mouseEnter (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override;
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
     juce::Rectangle<float> getFocusRingBounds() const override { return getThumbBounds(); }
 
@@ -126,6 +147,7 @@ public:
 
     void mouseEnter (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override;
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
     bool keyPressed (const juce::KeyPress&) override;
     void lookAndFeelChanged() override;
 

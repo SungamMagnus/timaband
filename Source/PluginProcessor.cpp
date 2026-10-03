@@ -30,7 +30,9 @@ TimabandProcessor::TimabandProcessor()
     : AudioProcessor (BusesProperties()
                           .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
                           .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
-      apvts (*this, nullptr, "state", createLayout())
+      apvts (*this, nullptr, "state", createLayout()),    // no UndoManager: see UndoRecorder
+      undoRecorder (*this, apvts, undoManager),
+      presets (apvts, undoRecorder)
 {
     xover1 = raw (apvts, pid::xover1);
     xover2 = raw (apvts, pid::xover2);
@@ -57,6 +59,13 @@ TimabandProcessor::TimabandProcessor()
     jassert (bypassParam != nullptr);
 
     applyUiStateDefaults();
+
+    // A preset loaded from the editor changes what the host's program menu should show.
+    presets.onLoaded = [this]
+    {
+        if (! hostIsLoadingProgram)
+            updateHostDisplay (ChangeDetails().withProgramChanged (true));
+    };
 }
 
 bool TimabandProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -177,6 +186,47 @@ void TimabandProcessor::applyUiStateDefaults()
         apvts.state.setProperty (uiState::selectedBand, uiState::defaultSelectedBand, nullptr);
 }
 
+int TimabandProcessor::getNumPrograms()
+{
+    return (int) factoryPresets().size();
+}
+
+int TimabandProcessor::getCurrentProgram()
+{
+    return presets.getProgramIndex();
+}
+
+const juce::String TimabandProcessor::getProgramName (int index)
+{
+    const auto& list = factoryPresets();
+    return index >= 0 && index < (int) list.size() ? list[(size_t) index].name : juce::String();
+}
+
+void TimabandProcessor::setCurrentProgram (int index)
+{
+    if (index < 0 || index >= getNumPrograms())
+        return;
+
+    // Hosts may call this from any thread; the load is parameter gestures and tree edits, so it
+    // belongs on the message thread. The index is visible straight away.
+    presets.setProgramIndex (index);
+
+    const auto load = [this, index]
+    {
+        const juce::ScopedValueSetter<bool> quiet (hostIsLoadingProgram, true);
+        presets.loadFactory (index);
+    };
+
+    if (juce::MessageManager::existsAndIsCurrentThread())
+        load();
+    else
+        juce::MessageManager::callAsync ([weak = juce::WeakReference<TimabandProcessor> (this), load]
+        {
+            if (weak != nullptr)
+                load();
+        });
+}
+
 void TimabandProcessor::getStateInformation (juce::MemoryBlock& dest)
 {
     if (auto xml = apvts.copyState().createXml())
@@ -191,6 +241,22 @@ void TimabandProcessor::setStateInformation (const void* data, int size)
         {
             apvts.replaceState (juce::ValueTree::fromXml (*xml));
             applyUiStateDefaults();
+
+            // A session starts with an empty history. The new tree may have been set from any thread.
+            const auto restore = [this]
+            {
+                presets.syncWithState();
+                undoRecorder.clear();
+            };
+
+            if (juce::MessageManager::existsAndIsCurrentThread())
+                restore();
+            else
+                juce::MessageManager::callAsync ([weak = juce::WeakReference<TimabandProcessor> (this), restore]
+                {
+                    if (weak != nullptr)
+                        restore();
+                });
         }
     }
 }

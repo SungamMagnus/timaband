@@ -1,5 +1,7 @@
 #include "Controls.h"
 
+#include "../UndoRecorder.h"
+
 namespace timaband::ui
 {
 
@@ -71,6 +73,55 @@ float StyledToggle::getFocusRingRadius() const
     }
 
     return 4.0f;
+}
+
+/* ── IconButton ──────────────────────────────────────────────────────────── */
+
+IconButton::IconButton (Icon i, const juce::String& title)
+    : FocusVisible<juce::Button> (title), icon (i)
+{
+    setTitle (title);
+    setTooltip (title);
+    setMouseCursor (juce::MouseCursor::PointingHandCursor);
+}
+
+bool IconButton::hitTest (int x, int y)
+{
+    return getLocalBounds().toFloat().getCentre().getDistanceFrom ({ (float) x, (float) y }) <= (float) getWidth() * 0.5f;
+}
+
+void IconButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
+{
+    const auto bounds = getLocalBounds().toFloat();
+    const auto enabled = isEnabled();
+    const auto faint = enabled ? 1.0f : 0.4f;
+    const auto arrow = icon == Icon::undo || icon == Icon::redo;
+
+    if (arrow)
+    {
+        // The undo/redo pair: an outlined circle with the glyph in ink.
+        if (enabled && (down || highlighted))
+        {
+            g.setColour (down ? colours::ctrlHi : colours::ctrl);
+            g.fillEllipse (bounds.reduced (0.5f));
+        }
+
+        g.setColour (colours::outline.withMultipliedAlpha (faint));
+        g.drawEllipse (bounds.reduced (0.5f), 1.0f);
+
+        theme::drawUndoGlyph (g, juce::Rectangle<float> (18.0f, 18.0f).withCentre (bounds.getCentre()),
+                              colours::text.withMultipliedAlpha (faint), icon == Icon::redo);
+        return;
+    }
+
+    // The pill's triangles: muted, ink and a soft disc under the mouse.
+    if (enabled && (down || highlighted))
+    {
+        g.setColour (colours::ctrlHi);
+        g.fillEllipse (bounds);
+    }
+
+    theme::drawTriangleGlyph (g, bounds, (highlighted || down) ? colours::text : colours::muted, icon == Icon::next);
 }
 
 /* ── SegmentedControl ────────────────────────────────────────────────────── */
@@ -167,9 +218,18 @@ bool applySliderKey (juce::Slider& slider, const juce::KeyPress& key, double ste
     else if (key.isKeyCode (juce::KeyPress::endKey))      next = slider.getMaximum();
     else return false;
 
+    // Held-down keys repeat: a burst of them is one undo step.
+    timaband::UndoRecorder::Coalesce burst;
     juce::Slider::ScopedDragNotification drag (slider);
     slider.setValue (next, juce::sendNotificationSync);
     return true;
+}
+
+void ThumbSlider::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
+{
+    // A burst of wheel ticks is one undo step.
+    timaband::UndoRecorder::Coalesce burst;
+    juce::Slider::mouseWheelMove (e, wheel);
 }
 
 ThumbSlider::ThumbSlider (juce::Point<float> size)
@@ -299,6 +359,12 @@ void GainBox::mouseExit (const juce::MouseEvent& e)
     repaint();
 }
 
+void GainBox::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
+{
+    timaband::UndoRecorder::Coalesce burst;
+    juce::Slider::mouseWheelMove (e, wheel);
+}
+
 bool GainBox::keyPressed (const juce::KeyPress& key)
 {
     return applySliderKey (*this, key, 0.5, 0.1, 3.0);
@@ -381,6 +447,7 @@ bool CurveSelector::keyPressed (const juce::KeyPress& key)
     else if (key == juce::KeyPress::rightKey || key == juce::KeyPress::downKey) step = 1;
     else return false;
 
+    timaband::UndoRecorder::Coalesce burst;
     select (selected + step, true);
     return true;
 }

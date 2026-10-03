@@ -2,6 +2,8 @@
 
 #include <cmath>
 
+#include "../UndoRecorder.h"
+
 namespace timaband::ui
 {
 
@@ -135,6 +137,8 @@ public:
 
     bool keyPressed (const juce::KeyPress& key) override
     {
+        // Held-down keys repeat: a burst of them is one undo step.
+        UndoRecorder::Coalesce burst;
         const auto shift = key.getModifiers().isShiftDown();
         const auto step = shift ? 1.0 / 6.0 : 1.0 / 24.0;      // octaves
 

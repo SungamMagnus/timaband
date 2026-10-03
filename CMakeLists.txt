@@ -34,12 +34,16 @@ set(TIMABAND_SOURCES
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
     Source/Parameters.cpp
+    Source/Presets.cpp
+    Source/UndoRecorder.cpp
     Source/dsp/Engine.cpp
     Source/ui/BandPanel.cpp
     Source/ui/Controls.cpp
     Source/ui/CrossoverDisplay.cpp
     Source/ui/LookAndFeel.cpp
     Source/ui/MeterPanel.cpp
+    Source/ui/PresetPill.cpp
+    Source/ui/PresetPrompt.cpp
     Source/ui/Spectrum.cpp)
 
 # PRODUCT_NAME stays ASCII: it names the bundle and the target. PLUGIN_NAME is
@@ -90,9 +94,9 @@ target_link_libraries(Timaband
 #               without a plug-in wrapper or a host.
 #   panel_shot  renders the real editor, fed with synthetic drums, to docs/*.png.
 #   ui_check    drives the editor's controls headlessly and checks what they do.
-#   panel_shot_sungam, ui_check_sungam
-#               the same two with the Sungam recolour (TIMABAND_THEME_SUNGAM=1);
-#               panel_shot_sungam writes docs/sungam-mockup/plugin-sungam*.png.
+#   panel_shot_dark, ui_check_dark
+#               the same two with the original dark palette (TIMABAND_THEME_DARK=1);
+#               panel_shot_dark writes docs/dark-theme/*.png.
 option(TIMABAND_TOOLS "Build the offline DSP checker and the editor renderer" OFF)
 if(TIMABAND_TOOLS)
     juce_add_console_app(dsp_check PRODUCT_NAME "dsp_check" NEEDS_CURL FALSE)
@@ -108,8 +112,8 @@ if(TIMABAND_TOOLS)
             juce::juce_recommended_config_flags
             juce::juce_recommended_warning_flags)
 
-    # The editor tools build once per palette: the default dark theme, and the Sungam
-    # recolour (TIMABAND_THEME_SUNGAM), which renders into docs/sungam-mockup.
+    # The editor tools build once per palette: the default Sungam (light) theme, and the
+    # old dark one (TIMABAND_THEME_DARK), which renders into docs/dark-theme.
     function(timaband_add_editor_tool target source docsDir)     # extra arguments are definitions
         juce_add_console_app(${target} PRODUCT_NAME "${target}" NEEDS_CURL FALSE)
         target_sources(${target} PRIVATE ${source} ${TIMABAND_SOURCES})
@@ -131,7 +135,7 @@ if(TIMABAND_TOOLS)
 
     set(timabandDocs "${CMAKE_CURRENT_SOURCE_DIR}/docs")
     timaband_add_editor_tool(panel_shot tools/panel_shot.cpp "${timabandDocs}")
-    timaband_add_editor_tool(panel_shot_sungam tools/panel_shot.cpp "${timabandDocs}/sungam-mockup" TIMABAND_THEME_SUNGAM=1)
+    timaband_add_editor_tool(panel_shot_dark tools/panel_shot.cpp "${timabandDocs}/dark-theme" TIMABAND_THEME_DARK=1)
     timaband_add_editor_tool(ui_check tools/ui_check.cpp "${timabandDocs}")
-    timaband_add_editor_tool(ui_check_sungam tools/ui_check.cpp "${timabandDocs}/sungam-mockup" TIMABAND_THEME_SUNGAM=1)
+    timaband_add_editor_tool(ui_check_dark tools/ui_check.cpp "${timabandDocs}/dark-theme" TIMABAND_THEME_DARK=1)
 endif()

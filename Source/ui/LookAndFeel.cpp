@@ -175,9 +175,10 @@ void drawCurveButton (juce::Graphics& g, CurveButton& b, bool highlighted, bool 
 
 TimabandLookAndFeel::TimabandLookAndFeel()
 {
-    // The only popup left is the right-click menu of the gain readout's text editor.
     setColour (juce::PopupMenu::backgroundColourId, colours::menuBg);
     setColour (juce::PopupMenu::textColourId, colours::text);
+    setColour (juce::PopupMenu::highlightedBackgroundColourId, colours::menuHighlight);
+    setColour (juce::PopupMenu::highlightedTextColourId, colours::text);
 
     setColour (juce::TooltipWindow::backgroundColourId, colours::menuBg);
     setColour (juce::TooltipWindow::textColourId, colours::text);
@@ -358,6 +359,119 @@ void TimabandLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int
         g.setColour (colours::hoverFill);
         g.fillRoundedRectangle (juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height), 3.0f);
     }
+}
+
+/* ── Menus and prompts ───────────────────────────────────────────────────── */
+
+namespace
+{
+constexpr int menuItemH = 30, menuSeparatorH = 9, menuTickW = 30, menuPadRight = 14;
+}
+
+juce::Font TimabandLookAndFeel::getPopupMenuFont()
+{
+    return theme::font (14.0f);
+}
+
+int TimabandLookAndFeel::getPopupMenuBorderSize()
+{
+    return 4;
+}
+
+int TimabandLookAndFeel::getMenuWindowFlags()
+{
+    // The flat palette has no shadows; the 1 px border is the whole edge.
+    return look::flat ? 0 : juce::LookAndFeel_V4::getMenuWindowFlags();
+}
+
+void TimabandLookAndFeel::drawPopupMenuBackground (juce::Graphics& g, int width, int height)
+{
+    g.fillAll (colours::menuBg);
+    g.setColour (colours::menuBorder);
+    g.drawRect (0, 0, width, height, 1);
+}
+
+void TimabandLookAndFeel::getIdealPopupMenuItemSize (const juce::String& text, bool isSeparator, int,
+                                                     int& idealWidth, int& idealHeight)
+{
+    if (isSeparator)
+    {
+        idealWidth = 50;
+        idealHeight = menuSeparatorH;
+        return;
+    }
+
+    idealWidth = menuTickW + (int) std::ceil (juce::GlyphArrangement::getStringWidth (getPopupMenuFont(), text)) + menuPadRight;
+    idealHeight = menuItemH;
+}
+
+void TimabandLookAndFeel::drawPopupMenuItem (juce::Graphics& g, const juce::Rectangle<int>& area,
+                                             bool isSeparator, bool isActive, bool isHighlighted, bool isTicked, bool,
+                                             const juce::String& text, const juce::String&,
+                                             const juce::Drawable*, const juce::Colour* textColour)
+{
+    if (isSeparator)
+    {
+        g.setColour (colours::line);
+        g.fillRect (area.getX() + 6, area.getCentreY(), area.getWidth() - 12, 1);
+        return;
+    }
+
+    const auto colour = (textColour != nullptr ? *textColour : colours::text).withMultipliedAlpha (isActive ? 1.0f : 0.45f);
+
+    if (isHighlighted && isActive)
+    {
+        g.setColour (colours::menuHighlight);
+        g.fillRoundedRectangle (area.toFloat(), 3.0f);
+    }
+
+    g.setColour (colour);
+
+    if (isTicked)
+    {
+        // A check mark in the gutter.
+        const auto c = juce::Point<float> ((float) area.getX() + 15.0f, (float) area.getCentreY());
+        juce::Path tick;
+        tick.startNewSubPath (c.x - 4.5f, c.y + 0.5f);
+        tick.lineTo (c.x - 1.5f, c.y + 3.5f);
+        tick.lineTo (c.x + 4.5f, c.y - 3.5f);
+        g.strokePath (tick, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    }
+
+    g.setFont (getPopupMenuFont());
+    g.drawText (text, area.withTrimmedLeft (menuTickW).withTrimmedRight (menuPadRight), juce::Justification::centredLeft, true);
+}
+
+void TimabandLookAndFeel::drawCallOutBoxBackground (juce::CallOutBox&, juce::Graphics& g, const juce::Path& path, juce::Image&)
+{
+    g.setColour (colours::menuBg);
+    g.fillPath (path);
+
+    g.setColour (colours::menuBorder);
+    g.strokePath (path, juce::PathStrokeType (1.0f));
+}
+
+void TimabandLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& button, const juce::Colour& backgroundColour,
+                                                bool highlighted, bool down)
+{
+    const auto bounds = button.getLocalBounds().toFloat().reduced (0.5f);
+    auto fill = backgroundColour;
+
+    if (down)
+        fill = fill.contrasting (0.12f);
+    else if (highlighted)
+        fill = fill.contrasting (0.06f);
+
+    g.setColour (fill);
+    g.fillRoundedRectangle (bounds, bounds.getHeight() * 0.5f);
+
+    g.setColour (colours::outline);
+    g.drawRoundedRectangle (bounds, bounds.getHeight() * 0.5f, 1.0f);
+}
+
+juce::Font TimabandLookAndFeel::getTextButtonFont (juce::TextButton&, int)
+{
+    return theme::font (13.0f);
 }
 
 } // namespace timaband::ui

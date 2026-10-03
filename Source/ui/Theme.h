@@ -9,11 +9,11 @@
 // layout values of docs/ui-mockup.html. The editor lays everything out at the
 // fixed design size and scales it with a transform, so these are in design pixels.
 //
-// The default palette is the dark one. Building with TIMABAND_THEME_SUNGAM=1 swaps in the
-// Sungam design system (flat paper and ink; colour only ever means a signal) with the
-// same names and the same layout, so only colours change.
-#ifndef TIMABAND_THEME_SUNGAM
- #define TIMABAND_THEME_SUNGAM 0
+// The default palette is the Sungam design system: flat paper and ink, where colour only
+// ever means a signal. Building with TIMABAND_THEME_DARK=1 swaps in the original dark
+// palette with the same names and the same layout, so only colours change.
+#ifndef TIMABAND_THEME_DARK
+ #define TIMABAND_THEME_DARK 0
 #endif
 
 namespace timaband::ui
@@ -23,7 +23,41 @@ namespace colours
 {
 using juce::Colour;
 
-#if TIMABAND_THEME_SUNGAM
+#if TIMABAND_THEME_DARK
+
+const Colour page     { 0xff0c0e11 };
+const Colour chrome   { 0xff1a1e23 };
+const Colour panel    { 0xff14171b };
+const Colour graph    { 0xff101317 };
+const Colour strip    { 0xff0e1114 };
+const Colour line     { 0xff262c33 };
+const Colour gridDot  { 0xff2c333b };
+const Colour ctrl     { 0xff262c33 };
+const Colour ctrlHi   { 0xff323a43 };
+const Colour text     { 0xffe7eaee };
+const Colour muted    { 0xff8a939d };
+const Colour dim      { 0xff5b636c };
+
+const Colour low      { 0xff2fb3ea };
+const Colour mid      { 0xfff3a83b };
+const Colour high     { 0xff3ed3b2 };
+const Colour lowSoft  { 0xff8cc5e0 };
+const Colour midSoft  { 0xffe3bf88 };
+const Colour highSoft { 0xff8fd3c4 };
+
+const Colour accent    { 0xff9fb4c4 };
+const Colour outline   { 0xff8f98a2 };
+const Colour outlineHi { 0xffcfd5db };
+const Colour white     { 0xffffffff };
+const Colour ink       { 0xff0c0e11 };
+const Colour spec      { 0xff9aa3ad };
+
+const Colour meterBg   { 0xff0b0d10 };
+const Colour meterLo   { 0xff9fb4c4 };
+const Colour meterHi   { 0xffdfe7ee };
+const Colour menuBorder { 0xff444d58 };
+
+#else
 
 const Colour paper  { 0xfff0ece2 };
 const Colour ink    { 0xff1a1a17 };
@@ -67,40 +101,6 @@ const Colour meterLo   = ink55;     // flat, no gradient
 const Colour meterHi   = ink55;
 const Colour menuBorder = ink28;
 
-#else
-
-const Colour page     { 0xff0c0e11 };
-const Colour chrome   { 0xff1a1e23 };
-const Colour panel    { 0xff14171b };
-const Colour graph    { 0xff101317 };
-const Colour strip    { 0xff0e1114 };
-const Colour line     { 0xff262c33 };
-const Colour gridDot  { 0xff2c333b };
-const Colour ctrl     { 0xff262c33 };
-const Colour ctrlHi   { 0xff323a43 };
-const Colour text     { 0xffe7eaee };
-const Colour muted    { 0xff8a939d };
-const Colour dim      { 0xff5b636c };
-
-const Colour low      { 0xff2fb3ea };
-const Colour mid      { 0xfff3a83b };
-const Colour high     { 0xff3ed3b2 };
-const Colour lowSoft  { 0xff8cc5e0 };
-const Colour midSoft  { 0xffe3bf88 };
-const Colour highSoft { 0xff8fd3c4 };
-
-const Colour accent    { 0xff9fb4c4 };
-const Colour outline   { 0xff8f98a2 };
-const Colour outlineHi { 0xffcfd5db };
-const Colour white     { 0xffffffff };
-const Colour ink       { 0xff0c0e11 };
-const Colour spec      { 0xff9aa3ad };
-
-const Colour meterBg   { 0xff0b0d10 };
-const Colour meterLo   { 0xff9fb4c4 };
-const Colour meterHi   { 0xffdfe7ee };
-const Colour menuBorder { 0xff444d58 };
-
 #endif
 
 inline Colour band (int b) noexcept
@@ -118,49 +118,7 @@ inline Colour bandSoft (int b) noexcept
 // Roles whose colour does not simply follow the base names above, because what is
 // dark on a dark panel is light on paper. The code asks for the role, so both palettes
 // draw the same controls.
-#if TIMABAND_THEME_SUNGAM
-
-const Colour onText         = paper;                // text on an ink fill
-const Colour onBandText     = paper;                // text or glyph on a band-coloured or ink fill
-const Colour onFill         = ink;                  // a selected segment, a pressed-in Bypass or Delta
-const Colour pillOnFill     = ink;
-const Colour pillOnOutline  = ink;
-const Colour pillDotOn      = paper;
-const Colour ringIdle       = ink28;                // the M, S and power rings
-const Colour ringHover      = ink55;
-const Colour trackFill      = ink08;                // slider and gain meter grooves
-const Colour hoverFill      = ink13;
-const Colour thumbBody      = ink;
-const Colour thumbDot       = paper;
-const Colour faderGroove    = ink13;
-const Colour faderGrooveHi  = ink13;
-const Colour faderZero      = ink13;
-const Colour faderZeroHi    = ink13;
-const Colour faderHandle    = paper;
-const Colour faderHandleHi  = ink08;
-const Colour faderEdge      = ink55;
-const Colour faderEdgeHi    = ink;
-const Colour faderMark      = ink;
-const Colour menuBg         = paper;                // tooltips and menus
-const Colour editText       = ink;
-const Colour handleLine     = ink;
-const Colour handleDragFill = ink;
-const Colour handleHover    = ink13;
-const Colour hatch          = ink.withAlpha (0.10f);
-const Colour gridLine       = ink08;                // the transfer graphs
-const Colour specLine       = ink45;
-const Colour specFill       = ink;
-const Colour peakLine       = ink;
-const Colour bypassed       = ink38;                // a bypassed band's accent
-
-const Colour tabOutline     = ink28;
-const Colour tabIdle        = paper;
-const Colour tabIdleHi      = ink08;
-const Colour tabGlyph       = ink62;
-const Colour tabGlyphOn     = paper;
-const Colour tabBypassed    = ink38;
-
-#else
+#if TIMABAND_THEME_DARK
 
 const Colour onText         = white;
 const Colour onBandText     = ink;
@@ -184,6 +142,7 @@ const Colour faderEdge      = outline;
 const Colour faderEdgeHi    = outlineHi;
 const Colour faderMark      = low;
 const Colour menuBg         = ctrlHi;
+const Colour menuHighlight  = white.withAlpha (0.08f);
 const Colour editText       = white;
 const Colour handleLine     = text.withAlpha (0.9f);
 const Colour handleDragFill = white;
@@ -203,24 +162,67 @@ const Colour tabGlyph       { 0xff1c1c1c };
 const Colour tabGlyphOn     { 0xff1c1c1c };
 const Colour tabBypassed    { 0xffc8c8c8 };
 
+#else
+
+const Colour onText         = paper;                // text on an ink fill
+const Colour onBandText     = paper;                // text or glyph on a band-coloured or ink fill
+const Colour onFill         = ink;                  // a selected segment, a pressed-in Bypass or Delta
+const Colour pillOnFill     = ink;
+const Colour pillOnOutline  = ink;
+const Colour pillDotOn      = paper;
+const Colour ringIdle       = ink28;                // the M, S and power rings
+const Colour ringHover      = ink55;
+const Colour trackFill      = ink08;                // slider and gain meter grooves
+const Colour hoverFill      = ink13;
+const Colour thumbBody      = ink;
+const Colour thumbDot       = paper;
+const Colour faderGroove    = ink13;
+const Colour faderGrooveHi  = ink13;
+const Colour faderZero      = ink13;
+const Colour faderZeroHi    = ink13;
+const Colour faderHandle    = paper;
+const Colour faderHandleHi  = ink08;
+const Colour faderEdge      = ink55;
+const Colour faderEdgeHi    = ink;
+const Colour faderMark      = ink;
+const Colour menuBg         = paper;                // tooltips and menus
+const Colour menuHighlight  = ink08;
+const Colour editText       = ink;
+const Colour handleLine     = ink;
+const Colour handleDragFill = ink;
+const Colour handleHover    = ink13;
+const Colour hatch          = ink.withAlpha (0.10f);
+const Colour gridLine       = ink08;                // the transfer graphs
+const Colour specLine       = ink45;
+const Colour specFill       = ink;
+const Colour peakLine       = ink;
+const Colour bypassed       = ink38;                // a bypassed band's accent
+
+const Colour tabOutline     = ink28;
+const Colour tabIdle        = paper;
+const Colour tabIdleHi      = ink08;
+const Colour tabGlyph       = ink62;
+const Colour tabGlyphOn     = paper;
+const Colour tabBypassed    = ink38;
+
 #endif
 } // namespace colours
 
 // What else differs between the palettes besides colour values.
 namespace look
 {
-#if TIMABAND_THEME_SUNGAM
-constexpr bool flat = true;                     // no shadows, glows or gradients
-constexpr float columnTint = 0.04f;             // the selected column's wash
-constexpr float spectrumLineAlpha = 1.0f;       // an unselected band's spectrum
-constexpr float spectrumFillAlpha = 0.08f;
-constexpr float selectedFillAlpha = 0.14f;      // the selected band's spectrum fill
-#else
+#if TIMABAND_THEME_DARK
 constexpr bool flat = false;
 constexpr float columnTint = 0.035f;
 constexpr float spectrumLineAlpha = 0.7f;
 constexpr float spectrumFillAlpha = 0.07f;
 constexpr float selectedFillAlpha = 0.18f;
+#else
+constexpr bool flat = true;                     // no shadows, glows or gradients
+constexpr float columnTint = 0.04f;             // the selected column's wash
+constexpr float spectrumLineAlpha = 1.0f;       // an unselected band's spectrum
+constexpr float spectrumFillAlpha = 0.08f;
+constexpr float selectedFillAlpha = 0.14f;      // the selected band's spectrum fill
 #endif
 } // namespace look
 
@@ -329,6 +331,69 @@ inline void drawCurveGlyph (juce::Graphics& g, int curveIndex, juce::Rectangle<f
     g.setColour (colour);
     g.strokePath (curvePath (curveIndex, box, 20),
                   juce::PathStrokeType (1.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+}
+
+// The glyphs of the header controls, from the mockup's 24 x 24 icon grid. All stroked
+// paths, so they take any colour and scale.
+inline void drawListGlyph (juce::Graphics& g, juce::Rectangle<float> box, juce::Colour colour)
+{
+    const auto t = juce::AffineTransform::scale (box.getWidth() / 24.0f).translated (box.getX(), box.getY());
+    juce::Path lines;
+
+    for (const auto y : { 6.5f, 12.0f, 17.5f })
+    {
+        lines.startNewSubPath (9.0f, y);
+        lines.lineTo (20.0f, y);
+    }
+
+    lines.applyTransform (t);
+    g.setColour (colour);
+    g.strokePath (lines, juce::PathStrokeType (1.6f * box.getWidth() / 24.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+    for (const auto y : { 6.5f, 12.0f, 17.5f })
+    {
+        juce::Path dot;
+        dot.addEllipse (4.5f - 0.8f, y - 0.8f, 1.6f, 1.6f);
+        g.fillPath (dot, t);
+    }
+}
+
+// A curved arrow: the shaft turns back on itself with the head at the top left.
+inline void drawUndoGlyph (juce::Graphics& g, juce::Rectangle<float> box, juce::Colour colour, bool redo)
+{
+    auto t = juce::AffineTransform::scale (box.getWidth() / 24.0f).translated (box.getX(), box.getY());
+
+    if (redo)
+        t = juce::AffineTransform::scale (-1.0f, 1.0f, 12.0f, 0.0f).followedBy (t);
+
+    juce::Path p;
+    p.startNewSubPath (8.5f, 7.5f);
+    p.lineTo (14.5f, 7.5f);
+    p.addCentredArc (14.5f, 12.0f, 4.5f, 4.5f, 0.0f, 0.0f, juce::MathConstants<float>::pi);
+    p.lineTo (9.0f, 16.5f);
+
+    p.startNewSubPath (11.5f, 4.0f);
+    p.lineTo (8.0f, 7.5f);
+    p.lineTo (11.5f, 11.0f);
+
+    p.applyTransform (t);
+    g.setColour (colour);
+    g.strokePath (p, juce::PathStrokeType (1.6f * box.getWidth() / 24.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+}
+
+// The previous/next triangles of the preset pill, centred in `box`.
+inline void drawTriangleGlyph (juce::Graphics& g, juce::Rectangle<float> box, juce::Colour colour, bool pointsRight)
+{
+    const auto cx = box.getCentreX(), cy = box.getCentreY();
+    juce::Path p;
+
+    if (pointsRight)
+        p.addTriangle (cx - 3.0f, cy - 4.5f, cx - 3.0f, cy + 4.5f, cx + 3.0f, cy);
+    else
+        p.addTriangle (cx + 3.0f, cy - 4.5f, cx + 3.0f, cy + 4.5f, cx - 3.0f, cy);
+
+    g.setColour (colour);
+    g.fillPath (p);
 }
 } // namespace theme
 

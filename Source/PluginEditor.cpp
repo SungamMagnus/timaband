@@ -1,5 +1,7 @@
 #include "PluginEditor.h"
 
+#include "ui/PresetPrompt.h"
+
 using namespace timaband;
 using namespace timaband::ui;
 
@@ -70,6 +72,12 @@ void TimabandEditor::Content::paintOverChildren (juce::Graphics& g)
     g.drawRect (getLocalBounds(), 1);
 }
 
+void TimabandEditor::UndoGroup::paint (juce::Graphics& g)
+{
+    g.setColour (colours::line);
+    g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (0.5f), (float) getHeight() * 0.5f, 1.0f);
+}
+
 void TimabandEditor::LeftArea::paint (juce::Graphics& g)
 {
     g.setColour (colours::line);
@@ -82,6 +90,8 @@ void TimabandEditor::LeftArea::paint (juce::Graphics& g)
 TimabandEditor::TimabandEditor (TimabandProcessor& p)
     : AudioProcessorEditor (&p),
       proc (p),
+      undoButton (IconButton::Icon::undo, "Undo"),
+      redoButton (IconButton::Icon::redo, "Redo"),
       lookaheadButton (StyledToggle::Style::pill, "Lookahead"),
       stereoLinkButton (StyledToggle::Style::pill, "Stereo link"),
       linkBandsButton (StyledToggle::Style::pill, "Link bands"),
@@ -92,11 +102,25 @@ TimabandEditor::TimabandEditor (TimabandProcessor& p)
 {
     setTitle (theme::appName());
     setOpaque (true);
+    setWantsKeyboardFocus (true);       // so Cmd+Z works after a click on the background
 
     content.setLookAndFeel (&lookAndFeel);
     content.setOpaque (true);
     tooltipWindow.setLookAndFeel (&lookAndFeel);        // a sibling of content, not inside it
     addAndMakeVisible (content);
+
+    // Header: the preset pill, then undo and redo.
+    content.addAndMakeVisible (presetPill);
+    content.addAndMakeVisible (undoGroup);
+    undoGroup.setTitle ("History");
+    undoGroup.addAndMakeVisible (undoButton);
+    undoGroup.addAndMakeVisible (redoButton);
+
+    presetPill.onOpenMenu = [this] { showPresetMenu(); };
+    presetPill.onPrevious = [this] { proc.getPresets().step (-1); refreshHeader(); };
+    presetPill.onNext     = [this] { proc.getPresets().step (1); refreshHeader(); };
+    undoButton.onClick    = [this] { undo(); };
+    redoButton.onClick    = [this] { redo(); };
 
     leftArea.setTitle ("Controls");
     content.addAndMakeVisible (leftArea);
@@ -193,6 +217,7 @@ TimabandEditor::TimabandEditor (TimabandProcessor& p)
     layoutContent();
 
     bypassWatcher->sendInitialUpdate();
+    refreshHeader();
 
     for (size_t b = 0; b < (size_t) numBands; ++b)
     {
@@ -235,6 +260,13 @@ void TimabandEditor::layoutContent()
     leftArea.setBounds (0, layout::headerH, layout::leftW, layout::designH - layout::headerH);
     meters.setBounds (layout::leftW, layout::headerH, layout::rightW, layout::designH - layout::headerH);
     focusRing.setBounds (content.getLocalBounds());
+
+    // Header, from the right: undo and redo in their outline 16 px from the edge, 24 px of gap, the pill.
+    // The header is 55 px of content above its 1 px rule.
+    undoGroup.setBounds (layout::designW - 16 - 78, 7, 78, 42);
+    undoButton.setBounds (5, 5, 32, 32);
+    redoButton.setBounds (41, 5, 32, 32);
+    presetPill.setBounds (undoGroup.getX() - 24 - PresetPill::width, 10, PresetPill::width, PresetPill::height);
 
     // Toolbar: Lookahead on the left, the analyzer switch centred, Reset on the right.
     lookaheadButton.setBounds (16, toolbarPillY, lookaheadButton.getIdealWidth(), 26);
@@ -318,6 +350,9 @@ void TimabandEditor::updateRanges()
 
 void TimabandEditor::resetShaping()
 {
+    // Six parameters, one undo step.
+    UndoRecorder::Scope step (proc.getUndoRecorder());
+
     for (int b = 0; b < numBands; ++b)
     {
         for (const auto& id : { pid::attack[b], pid::sustain[b] })
@@ -328,6 +363,197 @@ void TimabandEditor::resetShaping()
             param->endChangeGesture();
         }
     }
+}
+
+/* ── Presets and undo ────────────────────────────────────────────────────── */
+
+void TimabandEditor::refreshHeader()
+{
+    auto& presets = proc.getPresets();
+    presetPill.setState (presets.getName(), presets.isDirty());
+
+    const auto& history = proc.getUndoManager();
+    undoButton.setEnabled (history.canUndo());
+    redoButton.setEnabled (history.canRedo());
+}
+
+bool TimabandEditor::undo()
+{
+    // A gesture that is still open would be recorded on top of what the undo is about to restore.
+    if (! proc.getUndoRecorder().isIdle())
+        return false;
+
+    const auto done = proc.getUndoManager().undo();
+    refreshHeader();
+    return done;
+}
+
+bool TimabandEditor::redo()
+{
+    if (! proc.getUndoRecorder().isIdle())
+        return false;
+
+    const auto done = proc.getUndoManager().redo();
+    refreshHeader();
+    return done;
+}
+
+bool TimabandEditor::keyPressed (const juce::KeyPress& key)
+{
+    // Text being typed (a gain readout, a preset name) has an undo of its own, and wins.
+    if (dynamic_cast<juce::TextEditor*> (juce::Component::getCurrentlyFocusedComponent()) != nullptr)
+        return false;
+
+    const auto mods = key.getModifiers();
+    const auto code = key.getKeyCode() < 128 ? (int) juce::CharacterFunctions::toLowerCase ((juce::juce_wchar) key.getKeyCode())
+                                              : key.getKeyCode();
+
+    if (mods.isCommandDown() && ! mods.isAltDown() && code == 'z')
+    {
+        mods.isShiftDown() ? redo() : undo();
+        return true;
+    }
+
+   #if ! JUCE_MAC
+    if (mods.isCommandDown() && ! mods.isShiftDown() && code == 'y')
+    {
+        redo();
+        return true;
+    }
+   #endif
+
+    return false;
+}
+
+juce::PopupMenu TimabandEditor::createPresetMenu()
+{
+    auto& presets = proc.getPresets();
+
+    // Files may have been added or removed outside the plug-in.
+    presets.rescan();
+
+    juce::PopupMenu menu;
+    menu.setLookAndFeel (&lookAndFeel);
+
+    const auto& entries = presets.getEntries();
+    const auto current = presets.getCurrentIndex();
+    auto userStarted = false;
+
+    for (size_t i = 0; i < entries.size(); ++i)
+    {
+        if (! entries[i].factory && ! userStarted)
+        {
+            menu.addSeparator();
+            userStarted = true;
+        }
+
+        menu.addItem (menuFirstPreset + (int) i, entries[i].name, true, (int) i == current);
+    }
+
+    menu.addSeparator();
+    menu.addItem (menuSave, "Save");
+    menu.addItem (menuSaveAs, "Save As...");
+
+    if (presets.canDelete())
+        menu.addItem (menuDelete, "Delete");
+
+    menu.addItem (menuShowFolder, "Show Presets Folder");
+    return menu;
+}
+
+void TimabandEditor::showPresetMenu()
+{
+    createPresetMenu().showMenuAsync (juce::PopupMenu::Options()
+                                          .withTargetComponent (&presetPill)
+                                          .withMinimumWidth (PresetPill::width),
+                                      [safe = juce::Component::SafePointer<TimabandEditor> (this)] (int result)
+                                      {
+                                          if (safe != nullptr && result != 0)
+                                              safe->handlePresetMenu (result);
+                                      });
+}
+
+void TimabandEditor::handlePresetMenu (int itemId)
+{
+    auto& presets = proc.getPresets();
+
+    if (itemId >= menuFirstPreset)
+    {
+        presets.load (itemId - menuFirstPreset);
+    }
+    else if (itemId == menuSave)
+    {
+        // A factory preset cannot be overwritten, so Save asks for a name instead.
+        if (presets.isFactory())
+            showSaveAs ("My " + presets.getName(), {});
+        else if (presets.save() != PresetManager::SaveResult::saved)
+            showSaveAs (presets.getName(), "Could not write the file.");
+    }
+    else if (itemId == menuSaveAs)
+    {
+        showSaveAs (presets.isFactory() ? "My " + presets.getName() : presets.getName(), {});
+    }
+    else if (itemId == menuDelete)
+    {
+        showDeletePrompt();
+    }
+    else if (itemId == menuShowFolder)
+    {
+        const auto folder = PresetManager::getUserFolder();
+        folder.createDirectory();
+        folder.startAsProcess();
+    }
+
+    refreshHeader();
+}
+
+void TimabandEditor::launchCallOut (std::unique_ptr<juce::Component> prompt)
+{
+    juce::CallOutBox::launchAsynchronously (std::move (prompt), content.getLocalArea (&presetPill, presetPill.getLocalBounds()), &content);
+}
+
+void TimabandEditor::showSaveAs (const juce::String& initialName, const juce::String& error)
+{
+    auto prompt = std::make_unique<NamePrompt> ("Save preset as", initialName);
+
+    prompt->onSubmit = [this] (const juce::String& text) -> juce::String
+    {
+        const auto result = proc.getPresets().saveAs (text);
+        refreshHeader();
+
+        switch (result)
+        {
+            case PresetManager::SaveResult::saved:       return {};
+            case PresetManager::SaveResult::invalidName: return "Enter a name, without / \\ : * ? \" < > |";
+            case PresetManager::SaveResult::factoryName: return "That name belongs to a factory preset.";
+            case PresetManager::SaveResult::failed:      break;
+        }
+
+        return "The file could not be written.";
+    };
+
+    prompt->setMessage (error);
+
+    auto* raw = prompt.get();
+    launchCallOut (std::move (prompt));
+    juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<NamePrompt> (raw)]
+    {
+        if (safe != nullptr)
+            safe->focusEditor();
+    });
+}
+
+void TimabandEditor::showDeletePrompt()
+{
+    auto prompt = std::make_unique<ConfirmPrompt> ("Delete the preset \"" + proc.getPresets().getName() + "\"? This removes its file.", "Delete");
+
+    prompt->onConfirm = [this]
+    {
+        proc.getPresets().remove();
+        refreshHeader();
+    };
+
+    launchCallOut (std::move (prompt));
 }
 
 /* ── Frame ───────────────────────────────────────────────────────────────── */
@@ -349,6 +575,7 @@ void TimabandEditor::tick (float dtSeconds)
         band->tick (dtSeconds);
 
     meters.tick (dtSeconds);
+    refreshHeader();
 }
 
 void TimabandEditor::paint (juce::Graphics& g)

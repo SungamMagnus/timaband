@@ -13,6 +13,7 @@
 #include "ui/LinkController.h"
 #include "ui/LookAndFeel.h"
 #include "ui/MeterPanel.h"
+#include "ui/PresetPill.h"
 #include "ui/StateProperty.h"
 
 /**
@@ -36,6 +37,22 @@ public:
     void tick();
     void tick (float dtSeconds);
 
+    // The preset menu: factory presets, user presets, then Save, Save As..., Delete (a loaded
+    // user preset only) and Show Presets Folder. Item ids are in the constants below.
+    juce::PopupMenu createPresetMenu();
+    void showPresetMenu();
+    void handlePresetMenu (int itemId);
+
+    static constexpr int menuSave = 1, menuSaveAs = 2, menuDelete = 3, menuShowFolder = 4;
+    static constexpr int menuFirstPreset = 100;     // + the index in PresetManager::getEntries()
+
+    // Undo and redo, from the buttons and the keyboard. False when there was nothing to do,
+    // or a gesture is still open.
+    bool undo();
+    bool redo();
+
+    bool keyPressed (const juce::KeyPress&) override;
+
 private:
     // Header, outer outline.
     class Content final : public juce::Component
@@ -43,6 +60,13 @@ private:
     public:
         void paint (juce::Graphics&) override;
         void paintOverChildren (juce::Graphics&) override;
+    };
+
+    // The outline round the undo and redo buttons.
+    class UndoGroup final : public juce::Component
+    {
+    public:
+        void paint (juce::Graphics&) override;
     };
 
     // Toolbar and link row dividers.
@@ -62,12 +86,19 @@ private:
     void updateAudibility();
     void updateRanges();
     void resetShaping();
+    void refreshHeader();
+    void showSaveAs (const juce::String& initialName, const juce::String& error);
+    void showDeletePrompt();
+    void launchCallOut (std::unique_ptr<juce::Component>);
 
     TimabandProcessor& proc;
     timaband::ui::TimabandLookAndFeel lookAndFeel;
     juce::TooltipWindow tooltipWindow { this };
 
     Content content;
+    timaband::ui::PresetPill presetPill;
+    UndoGroup undoGroup;
+    timaband::ui::IconButton undoButton, redoButton;
     LeftArea leftArea;
     timaband::ui::StyledToggle lookaheadButton, stereoLinkButton, linkBandsButton, resetButton;
     juce::Label analyzerLabel;

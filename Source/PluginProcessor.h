@@ -6,6 +6,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "Parameters.h"
+#include "Presets.h"
+#include "UndoRecorder.h"
 #include "dsp/Analysis.h"
 #include "dsp/Engine.h"
 
@@ -32,10 +34,11 @@ public:
 
     juce::AudioProcessorParameter* getBypassParameter() const override { return bypassParam; }
 
-    int getNumPrograms() override { return 1; }
-    int getCurrentProgram() override { return 0; }
-    void setCurrentProgram (int) override {}
-    const juce::String getProgramName (int) override { return "Default"; }
+    // The factory presets are the host's programs. Loading one is exactly a preset load in the editor.
+    int getNumPrograms() override;
+    int getCurrentProgram() override;
+    void setCurrentProgram (int) override;
+    const juce::String getProgramName (int) override;
     void changeProgramName (int, const juce::String&) override {}
 
     void getStateInformation (juce::MemoryBlock&) override;
@@ -49,6 +52,11 @@ public:
     timaband::SampleFifo& getAnalyzerFifo (bool post) noexcept { return post ? postFifo : preFifo; }
     timaband::LevelMeter& getInputMeter() noexcept             { return inputMeter; }
     timaband::LevelMeter& getOutputMeter() noexcept            { return outputMeter; }
+
+    // The undo history of the editor's gestures; see UndoRecorder for what goes in it.
+    juce::UndoManager& getUndoManager() noexcept        { return undoManager; }
+    timaband::UndoRecorder& getUndoRecorder() noexcept  { return undoRecorder; }
+    timaband::PresetManager& getPresets() noexcept      { return presets; }
 
     juce::AudioProcessorValueTreeState apvts;
 
@@ -85,5 +93,12 @@ private:
     std::atomic<float>* bypass     = nullptr;
     juce::AudioParameterBool* bypassParam = nullptr;
 
+    // Declared after apvts: the recorder listens to the parameters it created.
+    juce::UndoManager undoManager;
+    timaband::UndoRecorder undoRecorder;
+    timaband::PresetManager presets;
+    bool hostIsLoadingProgram = false;
+
+    JUCE_DECLARE_WEAK_REFERENCEABLE (TimabandProcessor)
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TimabandProcessor)
 };

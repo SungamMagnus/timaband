@@ -67,7 +67,43 @@ in ─► input gain ─► LR4 3-band split ─┬─ low  ─► shaper ─►
 | `bypass` | Bypass | bool | off | returned by `getBypassParameter()` |
 
 UI-only state (stored in the state tree, not automatable): selected band,
-analyzer Pre/Post, Link bands.
+analyzer Pre/Post, Link bands, editor scale. The state tree also carries the loaded
+preset (`presetName`, `presetIsFactory`).
+
+## Presets
+
+- **Factory** (`Source/Presets.cpp`): Default, Init, Punchy Kit, Soft Attack, Tight Low End,
+  Snappy Snare, Room Tamer, Drum Bus Glue. Compiled-in lists of values per parameter ID.
+  They are the host's programs (`getNumPrograms` etc.); a fresh instance is "Init".
+- **Recalled**: all band parameters, both crossovers, lookahead, stereo link. Not recalled:
+  `bypass`, `delta`, `inputGain`, `outputGain`.
+- **User**: `~/Library/Audio/Presets/Sungam/Timaband/<name>.timabandpreset`, the state's XML
+  (`<state><PARAM id= value=/>…`) with the excluded parameters left out. File names are
+  sanitised; Save As refuses factory names; the folder is scanned when the menu opens.
+  `PresetManager::setUserFolder` redirects it (the tools use a temp folder).
+- **Modified marker**: current values against the loaded preset's, on the message thread, with
+  a tolerance of 0.05 dB (shaping) and 0.5 Hz (crossovers).
+- A load is one `UndoRecorder::Scope`: each changed parameter gets begin/end gestures, in one go.
+
+## Undo
+
+`UndoRecorder` (`Source/UndoRecorder.cpp`) listens to every parameter's gesture events and
+turns them into steps on the processor's `juce::UndoManager`:
+
+- A step opens at the first `beginChangeGesture` (or an `UndoRecorder::Scope`) and closes when
+  the last open gesture ends. At close the touched parameters (and the preset name) are
+  compared with how they were when first touched; no net change, no step.
+- One user gesture is one step: drags, clicks, Reset (a Scope), a preset load (a Scope), a
+  Link-bands drag (three parameters held open together).
+- Wheel and key input (`UndoRecorder::Coalesce` in the controls) joins the previous step when it
+  touches the same parameters within 800 ms. It works by not calling `beginNewTransaction`, so
+  `UndoableAction::createCoalescedAction` merges them.
+- Host automation is never recorded: it has no gesture, and a parameter that is not part of an
+  open gesture is not in the step. The APVTS is deliberately **not** given the UndoManager: its
+  timer would record automation (and clear the redo list) and getState would flush into it.
+- Actions apply values with begin/end gestures, so the host sees an undo as an edit. The preset
+  name is restored only by steps that changed it.
+- `setStateInformation` clears the history.
 
 ## Files
 
@@ -75,14 +111,22 @@ analyzer Pre/Post, Link bands.
 CMakeLists.txt
 Source/
   PluginProcessor.h/.cpp   APVTS, bus layouts (mono and stereo), state, reads params → Engine::Settings
-  PluginEditor.h/.cpp      Phase 1–2: generic editor. Phase 3: the mockup UI
+  PluginEditor.h/.cpp      the mockup UI, with the header's preset pill and undo/redo
   Parameters.h/.cpp        IDs and createLayout()
+  Presets.h/.cpp           factory presets, PresetManager (user files, loading, modified marker)
+  UndoRecorder.h/.cpp      gestures to undo steps
   dsp/Engine.h/.cpp        crossover + 3 shapers + mute/solo + lookahead + delta/bypass (no plugin wrapper deps)
   dsp/Shaper.h             envelope followers, curves, gain computer
-tools/
-  dsp_check.cpp            offline tests of Engine (-DTIMABAND_TOOLS=ON)
+tools/                     (-DTIMABAND_TOOLS=ON)
+  dsp_check.cpp            offline tests of Engine
+  panel_shot.cpp           renders the editor to docs/*.png (panel_shot, panel_shot_dark)
+  ui_check.cpp             headless editor checks (ui_check, ui_check_dark)
 docs/
-  PLAN.md, ui-mockup.html
+  PLAN.md, ui-mockup.html, panel*.png, dark-theme/ (the old dark palette's renders),
+  sungam-mockup/ (the static design mockup)
+
+The default palette is Sungam (light); `TIMABAND_THEME_DARK=1` builds the old dark one
+(only the tool targets do, to keep it compiling and tested).
 ```
 
 ## Phases
@@ -93,4 +137,4 @@ docs/
    extreme params, 44.1–192 kHz, block sizes 1–4096. *(Opus writes DSP, Sonnet writes checks)*
 3. **UI** — LookAndFeel and components ported from the mockup at 1120×640, scalable. *(Sonnet)*
 4. **Analyzer and meters** — lock-free FIFO → FFT spectrum, I/O peak/RMS, per-band gain meters. *(Sonnet)*
-5. **Polish** — presets, pluginval at strictness 10, auval, listening tests in Live and REAPER. *(Opus review)*
+5. **Polish** — presets and undo (done), pluginval at strictness 10, auval, listening tests in Live and REAPER. *(Opus review)*
