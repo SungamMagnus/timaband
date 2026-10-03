@@ -79,18 +79,18 @@ public:
     {
         const auto cx = centreX();
 
-        g.setColour (colours::text.withAlpha (0.9f));
+        g.setColour (colours::handleLine);
         g.fillRect (cx - 0.75f, lineTop, 1.5f, (float) getHeight() - lineTop);
 
         const juce::Rectangle<float> pill (cx - handleHalfWidth, pillTop, handleHalfWidth * 2.0f, pillHeight);
 
         if (dragging || isMouseOver())
         {
-            g.setColour (dragging ? colours::white : colours::white.withAlpha (0.18f));
+            g.setColour (dragging ? colours::handleDragFill : colours::handleHover);
             g.fillRoundedRectangle (pill, handleHalfWidth);
         }
 
-        g.setColour (dragging ? colours::white : colours::text);
+        g.setColour (dragging ? colours::handleDragFill : colours::text);
         g.drawRoundedRectangle (pill.reduced (1.0f), handleHalfWidth - 1.0f, 2.0f);
     }
 
@@ -424,7 +424,7 @@ void CrossoverDisplay::paintRegions (juce::Graphics& g) const
 
         g.saveState();
         g.reduceClipRegion (clip);
-        g.setColour (colours::white.withAlpha (0.06f));
+        g.setColour (colours::hatch);
 
         constexpr float period = 8.0f * 1.41421356f;
 
@@ -485,10 +485,10 @@ void CrossoverDisplay::paintSpectrum (juce::Graphics& g) const
         g.saveState();
         g.reduceClipRegion (clip);
 
-        g.setColour ((selected ? colours::band (b) : colours::spec).withAlpha ((selected ? 0.18f : 0.07f) * alpha));
+        g.setColour ((selected ? colours::band (b) : colours::specFill).withAlpha ((selected ? look::selectedFillAlpha : look::spectrumFillAlpha) * alpha));
         g.fillPath (fill);
 
-        g.setColour ((selected ? colours::band (b) : colours::spec).withAlpha ((selected ? 1.0f : 0.7f) * alpha));
+        g.setColour ((selected ? colours::band (b) : colours::specLine).withAlpha ((selected ? 1.0f : look::spectrumLineAlpha) * alpha));
         g.strokePath (line, juce::PathStrokeType (1.25f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         g.restoreState();
     }
@@ -527,7 +527,7 @@ void CrossoverDisplay::paintTip (juce::Graphics& g, const Handle& handle) const
     const auto left = x > (float) layout::graphW - 96.0f ? x - 14.0f - width : x + 14.0f;
     const juce::Rectangle<float> tip (left, 11.0f, width, 22.0f);
 
-    g.setColour (colours::ctrlHi);
+    g.setColour (colours::menuBg);
     g.fillRoundedRectangle (tip, 4.0f);
     g.setColour (colours::menuBorder);
     g.drawRoundedRectangle (tip.reduced (0.5f), 4.0f, 1.0f);

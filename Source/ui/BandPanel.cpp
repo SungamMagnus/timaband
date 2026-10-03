@@ -8,7 +8,7 @@ namespace timaband::ui
 namespace
 {
 constexpr float headerTop = 10.0f;
-constexpr int rowTop = 32;                  // dropdown and transfer graph
+constexpr int rowTop = 32;                  // curve buttons and transfer graph
 constexpr int slidersTop = 92;
 constexpr int sliderH = layout::trackLen + layout::thumbSize;
 
@@ -56,7 +56,7 @@ void BandPanel::TransferGraph::paint (juce::Graphics& g)
     g.fillRect (box);
 
     // Grid in thirds: a hairline at the top and left edge of each third.
-    g.setColour (colours::white.withAlpha (0.045f));
+    g.setColour (colours::gridLine);
 
     for (int k = 0; k < 3; ++k)
     {
@@ -103,7 +103,7 @@ void BandPanel::GainMeter::paint (juce::Graphics& g)
     juce::Path trackPath;
     trackPath.addRoundedRectangle (track, 3.0f);
 
-    g.setColour (colours::ctrlHi);
+    g.setColour (colours::trackFill);
     g.fillPath (trackPath);
 
     g.saveState();
@@ -139,7 +139,7 @@ void BandPanel::Readout::setValue (float db)
 
 void BandPanel::Readout::paint (juce::Graphics& g)
 {
-    const auto big = theme::font (30.0f), small = theme::font (13.0f);
+    const auto big = theme::font (15.0f), small = theme::font (11.0f);   // the number matches the slider label
     const auto number = theme::formatDb (value);
     const auto numberW = std::ceil (juce::GlyphArrangement::getStringWidth (big, number));
     const auto unitW = std::ceil (juce::GlyphArrangement::getStringWidth (small, "dB"));
@@ -158,7 +158,7 @@ void BandPanel::Readout::paint (juce::Graphics& g)
 /* ── BandPanel ───────────────────────────────────────────────────────────── */
 
 BandPanel::BandPanel (TimabandProcessor& p, int bandIndex)
-    : processor (p), band (bandIndex), curveBox (bandIndex), attack (bandIndex), sustain (bandIndex)
+    : processor (p), band (bandIndex), curveSelector (bandIndex), attack (bandIndex), sustain (bandIndex)
 {
     const juce::String name (bandNames[bandIndex]);
 
@@ -169,28 +169,32 @@ BandPanel::BandPanel (TimabandProcessor& p, int bandIndex)
     sustainReadout.setInterceptsMouseClicks (false, false);
 
     setTitle (name + " band");
-    curveBox.setTitle (name + " band detector curve");
     attack.setTitle (name + " band attack");
     sustain.setTitle (name + " band sustain");
 
-    auto* curveParam = dynamic_cast<juce::AudioParameterChoice*> (p.apvts.getParameter (pid::curve[bandIndex]));
-    jassert (curveParam != nullptr);
-    curveBox.addItemList (curveParam->choices, 1);
-
     attack.onValueChange  = [this] { attackReadout.setValue ((float) attack.getValue()); };
     sustain.onValueChange = [this] { sustainReadout.setValue ((float) sustain.getValue()); };
-    curveBox.onChange     = [this] { transfer.setCurve (curveBox.getSelectedItemIndex()); };
 
-    curveAttachment   = std::make_unique<juce::ComboBoxParameterAttachment> (*curveParam, curveBox);
+    // The attachment reports every change, the user's own included, so it is the one place
+    // that shows the curve.
+    curveAttachment = std::make_unique<juce::ParameterAttachment> (*p.apvts.getParameter (pid::curve[bandIndex]), [this] (float value)
+    {
+        const auto curve = (int) std::lround (value);
+        curveSelector.setSelected (curve);
+        transfer.setCurve (curve);
+    });
+
+    curveSelector.onChange = [this] (int curve) { curveAttachment->setValueAsCompleteGesture ((float) curve); };
+
     attackAttachment  = std::make_unique<juce::SliderParameterAttachment> (*p.apvts.getParameter (pid::attack[bandIndex]), attack);
     sustainAttachment = std::make_unique<juce::SliderParameterAttachment> (*p.apvts.getParameter (pid::sustain[bandIndex]), sustain);
 
+    curveAttachment->sendInitialUpdate();
     updateAppearance();
-    transfer.setCurve (curveBox.getSelectedItemIndex());
     attackReadout.setValue ((float) attack.getValue());
     sustainReadout.setValue ((float) sustain.getValue());
 
-    addAndMakeVisible (curveBox);
+    addAndMakeVisible (curveSelector);
     addAndMakeVisible (transfer);
     addAndMakeVisible (attack);
     addAndMakeVisible (sustain);
@@ -233,7 +237,7 @@ void BandPanel::updateAppearance()
     const auto accent = getAccent();
     attack.setColour (juce::Slider::trackColourId, accent);
     sustain.setColour (juce::Slider::trackColourId, accent);
-    curveBox.setColour (juce::ComboBox::textColourId, accent);
+    curveSelector.setAccent (bypassed ? colours::tabBypassed : colours::band (band));
 
     transfer.colour = accent;
     transfer.repaint();
@@ -290,9 +294,9 @@ void BandPanel::resized()
     const auto border = band > 0 ? 1 : 0;
     const auto left = 14 + border, width = getWidth() - 28 - border;
 
-    curveBox.setBounds (left, rowTop, 148, 38);
+    curveSelector.setBounds (left, rowTop, 148, 38);
 
-    // After the dropdown (148 + 8), the rotated "gain" label (10 + 4), then the plot.
+    // After the buttons' slot (148 + 8), the rotated "gain" label (10 + 4), then the plot.
     const juce::Rectangle<int> plot (left + 170, rowTop, width - 170, 38);
     transfer.setBounds (plot.expanded (6));
 
@@ -305,8 +309,8 @@ void BandPanel::resized()
     gainMeter.setBounds ((int) std::lround (centre) - 7, slidersTop + layout::thumbSize / 2, 14, layout::trackLen);
 
     const auto readoutY = slidersTop + sliderH + 2 + 16;
-    attackReadout.setBounds ((int) std::lround ((float) left + quarter) - 60, readoutY, 120, 31);
-    sustainReadout.setBounds ((int) std::lround ((float) left + quarter * 3.0f) - 60, readoutY, 120, 31);
+    attackReadout.setBounds ((int) std::lround ((float) left + quarter) - 60, readoutY, 120, 18);
+    sustainReadout.setBounds ((int) std::lround ((float) left + quarter * 3.0f) - 60, readoutY, 120, 18);
 }
 
 void BandPanel::paint (juce::Graphics& g)
@@ -317,7 +321,7 @@ void BandPanel::paint (juce::Graphics& g)
 
     if (selected)
     {
-        g.setColour (colour.withAlpha (0.035f));
+        g.setColour (colour.withAlpha (look::columnTint));
         g.fillRect (getLocalBounds().withTrimmedLeft (border));
         g.setColour (colour);
         g.fillRect (border, 0, getWidth() - border, 2);

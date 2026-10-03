@@ -90,6 +90,9 @@ target_link_libraries(Timaband
 #               without a plug-in wrapper or a host.
 #   panel_shot  renders the real editor, fed with synthetic drums, to docs/*.png.
 #   ui_check    drives the editor's controls headlessly and checks what they do.
+#   panel_shot_sungam, ui_check_sungam
+#               the same two with the Sungam recolour (TIMABAND_THEME_SUNGAM=1);
+#               panel_shot_sungam writes docs/sungam-mockup/plugin-sungam*.png.
 option(TIMABAND_TOOLS "Build the offline DSP checker and the editor renderer" OFF)
 if(TIMABAND_TOOLS)
     juce_add_console_app(dsp_check PRODUCT_NAME "dsp_check" NEEDS_CURL FALSE)
@@ -105,34 +108,30 @@ if(TIMABAND_TOOLS)
             juce::juce_recommended_config_flags
             juce::juce_recommended_warning_flags)
 
-    juce_add_console_app(panel_shot PRODUCT_NAME "panel_shot" NEEDS_CURL FALSE)
-    target_sources(panel_shot PRIVATE tools/panel_shot.cpp ${TIMABAND_SOURCES})
-    target_compile_definitions(panel_shot PRIVATE
-        JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0
-        JUCE_STANDALONE_APPLICATION=1 JUCE_MODAL_LOOPS_PERMITTED=1
-        JucePlugin_Name="Timaband"
-        TIMABAND_DOCS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/docs")
-    target_include_directories(panel_shot PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
-    target_link_libraries(panel_shot
-        PRIVATE
-            juce::juce_audio_utils
-            juce::juce_dsp
-        PUBLIC
-            juce::juce_recommended_config_flags
-            juce::juce_recommended_warning_flags)
+    # The editor tools build once per palette: the default dark theme, and the Sungam
+    # recolour (TIMABAND_THEME_SUNGAM), which renders into docs/sungam-mockup.
+    function(timaband_add_editor_tool target source docsDir)     # extra arguments are definitions
+        juce_add_console_app(${target} PRODUCT_NAME "${target}" NEEDS_CURL FALSE)
+        target_sources(${target} PRIVATE ${source} ${TIMABAND_SOURCES})
+        target_compile_definitions(${target} PRIVATE
+            JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0
+            JUCE_STANDALONE_APPLICATION=1 JUCE_MODAL_LOOPS_PERMITTED=1
+            JucePlugin_Name="Timaband"
+            TIMABAND_DOCS_DIR="${docsDir}"
+            ${ARGN})
+        target_include_directories(${target} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
+        target_link_libraries(${target}
+            PRIVATE
+                juce::juce_audio_utils
+                juce::juce_dsp
+            PUBLIC
+                juce::juce_recommended_config_flags
+                juce::juce_recommended_warning_flags)
+    endfunction()
 
-    juce_add_console_app(ui_check PRODUCT_NAME "ui_check" NEEDS_CURL FALSE)
-    target_sources(ui_check PRIVATE tools/ui_check.cpp ${TIMABAND_SOURCES})
-    target_compile_definitions(ui_check PRIVATE
-        JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0
-        JUCE_STANDALONE_APPLICATION=1 JUCE_MODAL_LOOPS_PERMITTED=1
-        JucePlugin_Name="Timaband")
-    target_include_directories(ui_check PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
-    target_link_libraries(ui_check
-        PRIVATE
-            juce::juce_audio_utils
-            juce::juce_dsp
-        PUBLIC
-            juce::juce_recommended_config_flags
-            juce::juce_recommended_warning_flags)
+    set(timabandDocs "${CMAKE_CURRENT_SOURCE_DIR}/docs")
+    timaband_add_editor_tool(panel_shot tools/panel_shot.cpp "${timabandDocs}")
+    timaband_add_editor_tool(panel_shot_sungam tools/panel_shot.cpp "${timabandDocs}/sungam-mockup" TIMABAND_THEME_SUNGAM=1)
+    timaband_add_editor_tool(ui_check tools/ui_check.cpp "${timabandDocs}")
+    timaband_add_editor_tool(ui_check_sungam tools/ui_check.cpp "${timabandDocs}/sungam-mockup" TIMABAND_THEME_SUNGAM=1)
 endif()

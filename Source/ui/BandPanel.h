@@ -11,7 +11,7 @@
 namespace timaband::ui
 {
 
-// One band's column: header with the live range, the curve dropdown with its
+// One band's column: header with the live range, the three curve buttons with their
 // transfer graph, the Attack and Sustain sliders with readouts, and the gain meter.
 class BandPanel final : public juce::Component
 {
@@ -86,13 +86,13 @@ private:
         float value = 0.0f;
     };
 
-    juce::Colour getAccent() const noexcept { return bypassed ? colours::muted : colours::band (band); }
+    juce::Colour getAccent() const noexcept { return bypassed ? colours::bypassed : colours::band (band); }
     void updateAppearance();
 
     TimabandProcessor& processor;
     const int band;
 
-    CurveBox curveBox;
+    CurveSelector curveSelector;
     TransferGraph transfer;
     BipolarSlider attack, sustain;
     Readout attackReadout, sustainReadout;
@@ -103,7 +103,7 @@ private:
     bool selected = false, audible = true, bypassed = false;
     std::atomic<float>* bypassValue = nullptr;
 
-    std::unique_ptr<juce::ComboBoxParameterAttachment> curveAttachment;
+    std::unique_ptr<juce::ParameterAttachment> curveAttachment;
     std::unique_ptr<juce::SliderParameterAttachment> attackAttachment, sustainAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BandPanel)

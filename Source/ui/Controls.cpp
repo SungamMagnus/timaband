@@ -81,7 +81,13 @@ SegmentedControl::SegmentedControl (const juce::StringArray& labels)
     {
         auto* seg = segments.add (new StyledToggle (StyledToggle::Style::segment, labels[i]));
         seg->setRadioGroupId (1);
-        seg->onClick = [this, i] { select (i, true); };
+
+        // The segment that gets switched off fires its onClick too; only the one now on is a choice.
+        seg->onClick = [this, i]
+        {
+            if (segments[i]->getToggleState())
+                select (i, true);
+        };
         addAndMakeVisible (seg);
     }
 
@@ -298,14 +304,90 @@ bool GainBox::keyPressed (const juce::KeyPress& key)
     return applySliderKey (*this, key, 0.5, 0.1, 3.0);
 }
 
-/* ── CurveBox ────────────────────────────────────────────────────────────── */
+/* ── CurveSelector ───────────────────────────────────────────────────────── */
 
-CurveBox::CurveBox (int bandIndex)
-    : band (bandIndex)
+CurveButton::CurveButton (int curveIndex)
+    : curve (curveIndex)
 {
-    setColour (juce::ComboBox::textColourId, colours::band (bandIndex));
-    setJustificationType (juce::Justification::centredLeft);
-    setScrollWheelEnabled (false);
+    setRadioGroupId (1);
+    setWantsKeyboardFocus (false);      // the selector is the Tab stop
+    setMouseCursor (juce::MouseCursor::PointingHandCursor);
+    setTooltip (curveNames[curveIndex]);
+}
+
+CurveSelector::CurveSelector (int bandIndex)
+{
+    const juce::String name (bandNames[bandIndex]);
+
+    setWantsKeyboardFocus (true);
+    setTitle (name + " band detector curve");
+
+    for (int i = 0; i < juce::numElementsInArray (curveNames); ++i)
+    {
+        auto* button = buttons.add (new CurveButton (i));
+        button->setTitle (name + " curve: " + curveNames[i]);
+
+        // The button that gets switched off fires its onClick too; only the one now on is a choice.
+        button->onClick = [this, i]
+        {
+            if (buttons[i]->getToggleState())
+                select (i, true);
+        };
+
+        addAndMakeVisible (button);
+    }
+
+    buttons[0]->setToggleState (true, juce::dontSendNotification);
+}
+
+void CurveSelector::setSelected (int index)
+{
+    select (index, false);
+}
+
+void CurveSelector::setAccent (juce::Colour colour)
+{
+    for (auto* button : buttons)
+        button->setColour (juce::ToggleButton::tickColourId, colour);
+}
+
+void CurveSelector::select (int index, bool notify)
+{
+    index = juce::jlimit (0, buttons.size() - 1, index);
+    buttons[index]->setToggleState (true, juce::dontSendNotification);      // turns the others off
+
+    if (index == selected)
+        return;
+
+    selected = index;
+
+    if (notify && onChange != nullptr)
+        onChange (index);
+}
+
+void CurveSelector::resized()
+{
+    const auto y = (getHeight() - buttonH) / 2;
+
+    for (int i = 0; i < buttons.size(); ++i)
+        buttons[i]->setBounds (i * (buttonW + buttonGap), y, buttonW, buttonH);
+}
+
+bool CurveSelector::keyPressed (const juce::KeyPress& key)
+{
+    int step = 0;
+
+    if (key == juce::KeyPress::leftKey || key == juce::KeyPress::upKey)         step = -1;
+    else if (key == juce::KeyPress::rightKey || key == juce::KeyPress::downKey) step = 1;
+    else return false;
+
+    select (selected + step, true);
+    return true;
+}
+
+juce::Rectangle<float> CurveSelector::getFocusRingBounds() const
+{
+    return buttons.getFirst()->getBounds().getUnion (buttons.getLast()->getBounds()).toFloat();
 }
 
 } // namespace timaband::ui

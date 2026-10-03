@@ -24,26 +24,26 @@ void drawPill (juce::Graphics& g, StyledToggle& b, bool highlighted)
 
     if (on)
     {
-        g.setColour (colours::white.withAlpha (0.05f));
+        g.setColour (colours::pillOnFill);
         g.fillRoundedRectangle (bounds.reduced (0.5f), bounds.getHeight() * 0.5f);
     }
 
-    g.setColour (on ? colours::outlineHi : colours::outline);
+    g.setColour (on ? colours::pillOnOutline : colours::outline);
     g.drawRoundedRectangle (bounds.reduced (0.5f), bounds.getHeight() * 0.5f, 1.0f);
 
     const juce::Point<float> dot (1.0f + 14.0f + 3.0f, bounds.getCentreY());
 
-    if (on)     // box-shadow: 0 0 6px accent
+    if (on && ! look::flat)     // box-shadow: 0 0 6px accent
     {
         g.setGradientFill (juce::ColourGradient (colours::accent.withAlpha (0.55f), dot,
                                                  colours::accent.withAlpha (0.0f), dot.translated (9.0f, 0.0f), true));
         g.fillEllipse (juce::Rectangle<float> (18.0f, 18.0f).withCentre (dot));
     }
 
-    g.setColour (on ? colours::accent : colours::dim);
+    g.setColour (on ? colours::pillDotOn : colours::dim);
     g.fillEllipse (juce::Rectangle<float> (6.0f, 6.0f).withCentre (dot));
 
-    g.setColour (on ? colours::white : (highlighted ? colours::text : colours::muted));
+    g.setColour (on ? colours::onText : (highlighted ? colours::text : colours::muted));
     g.setFont (StyledToggle::getFont (b.getStyle()));
     g.drawText (b.getButtonText(), juce::Rectangle<float> (29.0f, 0.0f, bounds.getWidth() - 29.0f, bounds.getHeight()),
                 juce::Justification::centredLeft, false);
@@ -56,7 +56,7 @@ void drawMuteSolo (juce::Graphics& g, StyledToggle& b, bool highlighted)
     const auto isMute = b.getStyle() == StyledToggle::Style::mute;
 
     const auto fill = isMute ? colours::band (b.getBand()) : colours::text;
-    const auto edge = on ? fill : (highlighted ? colours::text : colours::muted);
+    const auto edge = on ? fill : (highlighted ? colours::ringHover : colours::ringIdle);
 
     if (on)
     {
@@ -67,7 +67,7 @@ void drawMuteSolo (juce::Graphics& g, StyledToggle& b, bool highlighted)
     g.setColour (edge);
     g.drawEllipse (bounds.reduced (0.75f), 1.5f);
 
-    g.setColour (on ? colours::ink : (highlighted ? colours::text : colours::muted));
+    g.setColour (on ? colours::onBandText : (highlighted ? colours::text : colours::muted));
     g.setFont (StyledToggle::getFont (b.getStyle()));
     g.drawText (b.getButtonText(), bounds, juce::Justification::centred, false);
 }
@@ -107,10 +107,10 @@ void drawBig (juce::Graphics& g, StyledToggle& b, bool highlighted)
     const auto left = b.getStyle() == StyledToggle::Style::bigLeft;
     const auto path = roundedPath (bounds, 22.0f, left, ! left);
 
-    g.setColour (on ? colours::ctrlHi : colours::ctrl);
+    g.setColour (on ? colours::onFill : colours::ctrl);
     g.fillPath (path);
 
-    if (on)     // inset 1px accent ring
+    if (on && ! look::flat)     // inset 1px accent ring
     {
         g.saveState();
         g.reduceClipRegion (path);
@@ -119,7 +119,7 @@ void drawBig (juce::Graphics& g, StyledToggle& b, bool highlighted)
         g.restoreState();
     }
 
-    g.setColour (on ? colours::white : (highlighted ? colours::text : colours::muted));
+    g.setColour (on ? colours::onText : (highlighted ? colours::text : colours::muted));
     g.setFont (StyledToggle::getFont (b.getStyle()));
     g.drawText (b.getButtonText(), bounds, juce::Justification::centred, false);
 }
@@ -131,11 +131,11 @@ void drawSegment (juce::Graphics& g, StyledToggle& b, bool highlighted)
 
     if (on)
     {
-        g.setColour (colours::ctrlHi);
+        g.setColour (colours::onFill);
         g.fillRoundedRectangle (bounds, bounds.getHeight() * 0.5f);
     }
 
-    g.setColour (on ? colours::white : (highlighted ? colours::text : colours::muted));
+    g.setColour (on ? colours::onText : (highlighted ? colours::text : colours::muted));
     g.setFont (StyledToggle::getFont (b.getStyle()));
     g.drawText (b.getButtonText(), bounds, juce::Justification::centred, false);
 }
@@ -146,14 +146,44 @@ void drawTextLink (juce::Graphics& g, StyledToggle& b, bool highlighted)
     g.setFont (StyledToggle::getFont (b.getStyle()));
     g.drawText (b.getButtonText(), b.getLocalBounds().toFloat(), juce::Justification::centred, false);
 }
+
+// A live.tab key: a flat key with an outline, filled with the accent while selected.
+void drawCurveButton (juce::Graphics& g, CurveButton& b, bool highlighted, bool down)
+{
+    const auto on = b.getToggleState();
+    auto fill = on ? b.findColour (juce::ToggleButton::tickColourId) : colours::tabIdle;
+
+    if (down)
+        fill = fill.darker (0.1f);
+    else if (highlighted)
+        fill = on ? fill.brighter (0.1f) : colours::tabIdleHi;
+
+    const auto bounds = b.getLocalBounds().toFloat();
+
+    // The outline is centred on this rectangle's edge, which keeps all of it inside the button.
+    const auto edge = bounds.reduced (0.75f);
+
+    g.setColour (fill);
+    g.fillRoundedRectangle (edge, 2.0f);
+    g.setColour (colours::tabOutline);
+    g.drawRoundedRectangle (edge, 2.0f, 1.5f);
+
+    theme::drawCurveGlyph (g, b.getCurve(), juce::Rectangle<float> (26.0f, 14.0f).withCentre (bounds.getCentre()),
+                           on ? colours::tabGlyphOn : colours::tabGlyph);
+}
 } // namespace
 
 TimabandLookAndFeel::TimabandLookAndFeel()
 {
-    setColour (juce::PopupMenu::backgroundColourId, colours::ctrlHi);
+    // The only popup left is the right-click menu of the gain readout's text editor.
+    setColour (juce::PopupMenu::backgroundColourId, colours::menuBg);
     setColour (juce::PopupMenu::textColourId, colours::text);
-    setColour (juce::ComboBox::arrowColourId, colours::muted);
-    setColour (juce::Slider::thumbColourId, colours::white);
+
+    setColour (juce::TooltipWindow::backgroundColourId, colours::menuBg);
+    setColour (juce::TooltipWindow::textColourId, colours::text);
+    setColour (juce::TooltipWindow::outlineColourId, colours::menuBorder);
+
+    setColour (juce::Slider::thumbColourId, colours::thumbBody);
     setColour (juce::Label::textColourId, colours::text);
 }
 
@@ -161,6 +191,12 @@ TimabandLookAndFeel::TimabandLookAndFeel()
 
 void TimabandLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button, bool highlighted, bool down)
 {
+    if (auto* curve = dynamic_cast<CurveButton*> (&button))
+    {
+        drawCurveButton (g, *curve, highlighted, down);
+        return;
+    }
+
     auto* b = dynamic_cast<StyledToggle*> (&button);
 
     if (b == nullptr)
@@ -180,117 +216,6 @@ void TimabandLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButto
         case StyledToggle::Style::segment:  drawSegment (g, *b, highlighted); break;
         case StyledToggle::Style::textLink: drawTextLink (g, *b, highlighted); break;
     }
-}
-
-/* ── Curve dropdown ──────────────────────────────────────────────────────── */
-
-void TimabandLookAndFeel::drawComboBox (juce::Graphics& g, int width, int height, bool,
-                                        int, int, int, int, juce::ComboBox& box)
-{
-    const auto bounds = juce::Rectangle<float> ((float) width, (float) height);
-
-    g.setColour (box.isMouseOver (true) || box.isPopupActive() ? colours::ctrlHi : colours::ctrl);
-    g.fillRoundedRectangle (bounds, 3.0f);
-
-    const auto index = box.getSelectedItemIndex();
-
-    if (index >= 0)
-        theme::drawCurveGlyph (g, index, juce::Rectangle<float> (11.0f, (bounds.getHeight() - 14.0f) * 0.5f, 24.0f, 14.0f),
-                               box.findColour (juce::ComboBox::textColourId));
-
-    juce::Path chevron;
-    const auto origin = juce::Point<float> (bounds.getWidth() - 10.0f - 12.0f, (bounds.getHeight() - 12.0f) * 0.5f);
-    chevron.startNewSubPath (origin.translated (2.5f, 4.5f));
-    chevron.lineTo (origin.translated (6.0f, 8.0f));
-    chevron.lineTo (origin.translated (9.5f, 4.5f));
-
-    g.setColour (colours::muted);
-    g.strokePath (chevron, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-}
-
-juce::Font TimabandLookAndFeel::getComboBoxFont (juce::ComboBox&)
-{
-    return theme::font (14.0f);
-}
-
-void TimabandLookAndFeel::positionComboBoxText (juce::ComboBox& box, juce::Label& label)
-{
-    // After the glyph (11 + 24 + 8) and before the chevron (12 + 10), plus its gap.
-    label.setBounds (43, 0, box.getWidth() - 43 - 8 - 12 - 10, box.getHeight());
-    label.setFont (getComboBoxFont (box));
-}
-
-juce::PopupMenu::Options TimabandLookAndFeel::getOptionsForComboBoxPopupMenu (juce::ComboBox& box, juce::Label& label)
-{
-    return LookAndFeel_V4::getOptionsForComboBoxPopupMenu (box, label)
-               .withMinimumWidth (168)
-               .withStandardItemHeight (32);
-}
-
-juce::Font TimabandLookAndFeel::getPopupMenuFont()
-{
-    return theme::font (14.0f);
-}
-
-int TimabandLookAndFeel::getPopupMenuBorderSizeWithOptions (const juce::PopupMenu::Options&)
-{
-    return 5;       // 1px border and 4px padding
-}
-
-void TimabandLookAndFeel::drawPopupMenuBackgroundWithOptions (juce::Graphics& g, int width, int height,
-                                                              const juce::PopupMenu::Options&)
-{
-    g.fillAll (colours::ctrlHi);
-    g.setColour (colours::menuBorder);
-    g.drawRect (0, 0, width, height, 1);
-}
-
-void TimabandLookAndFeel::drawPopupMenuItemWithOptions (juce::Graphics& g, const juce::Rectangle<int>& area, bool isHighlighted,
-                                                        const juce::PopupMenu::Item& item, const juce::PopupMenu::Options& options)
-{
-    if (item.isSeparator || item.isSectionHeader)
-    {
-        LookAndFeel_V4::drawPopupMenuItemWithOptions (g, area, isHighlighted, item, options);
-        return;
-    }
-
-    // The dropdown's text colour is the band colour; the menu borrows it for the glyph and the ticked item.
-    const auto bandColour = options.getTargetComponent() != nullptr
-                                ? options.getTargetComponent()->findColour (juce::ComboBox::textColourId)
-                                : colours::text;
-
-    if (isHighlighted && item.isEnabled)
-    {
-        g.setColour (colours::white.withAlpha (0.08f));
-        g.fillRoundedRectangle (area.toFloat(), 3.0f);
-    }
-
-    const auto curve = theme::curveIndexForName (item.text);
-
-    if (curve >= 0)
-        theme::drawCurveGlyph (g, curve, juce::Rectangle<float> (24.0f, 14.0f)
-                                             .withCentre ({ (float) area.getX() + 10.0f + 12.0f, (float) area.getCentreY() }),
-                               bandColour);
-
-    g.setColour (item.isTicked ? bandColour : colours::text);
-    g.setFont (getPopupMenuFont());
-    g.drawText (item.text, area.withTrimmedLeft (10 + 24 + 10).withTrimmedRight (10),
-                juce::Justification::centredLeft, false);
-}
-
-void TimabandLookAndFeel::getIdealPopupMenuItemSizeWithOptions (const juce::String& text, bool isSeparator,
-                                                                int standardMenuItemHeight, int& idealWidth, int& idealHeight,
-                                                                const juce::PopupMenu::Options& options)
-{
-    if (isSeparator)
-    {
-        LookAndFeel_V4::getIdealPopupMenuItemSizeWithOptions (text, isSeparator, standardMenuItemHeight,
-                                                              idealWidth, idealHeight, options);
-        return;
-    }
-
-    idealWidth = 10 + 24 + 10 + (int) std::ceil (juce::GlyphArrangement::getStringWidth (getPopupMenuFont(), text)) + 10;
-    idealHeight = 32;
 }
 
 /* ── Sliders ─────────────────────────────────────────────────────────────── */
@@ -329,8 +254,8 @@ juce::Label* TimabandLookAndFeel::createSliderTextBox (juce::Slider& slider)
         label->setColour (juce::Label::outlineColourId, juce::Colours::transparentBlack);
 
         // While typing.
-        label->setColour (juce::Label::textWhenEditingColourId, colours::white);
-        label->setColour (juce::Label::backgroundWhenEditingColourId, colours::ctrlHi);
+        label->setColour (juce::Label::textWhenEditingColourId, colours::editText);
+        label->setColour (juce::Label::backgroundWhenEditingColourId, colours::menuBg);
         label->setColour (juce::Label::outlineWhenEditingColourId, colours::accent);
         label->setColour (juce::TextEditor::highlightColourId, colours::accent.withAlpha (0.35f));
     }
@@ -347,7 +272,7 @@ void drawBipolar (juce::Graphics& g, int x, int y, int width, int height, float 
     const auto top = (float) y, length = (float) height;
     const auto centre = top + length * 0.5f;
 
-    g.setColour (colours::ctrlHi);
+    g.setColour (colours::trackFill);
     g.fillRoundedRectangle (cx - 3.0f, top, 6.0f, length, 3.0f);
 
     const auto fillTop = juce::jmin (sliderPos, centre), fillBottom = juce::jmax (sliderPos, centre);
@@ -370,14 +295,17 @@ void drawBipolar (juce::Graphics& g, int x, int y, int width, int height, float 
         g.fillEllipse (thumb.expanded (4.0f));
     }
 
-    juce::Path disc;
-    disc.addEllipse (thumb);
-    juce::DropShadow (juce::Colours::black.withAlpha (0.55f), 4, { 0, 1 }).drawForPath (g, disc);
+    if (! look::flat)
+    {
+        juce::Path disc;
+        disc.addEllipse (thumb);
+        juce::DropShadow (juce::Colours::black.withAlpha (0.55f), 4, { 0, 1 }).drawForPath (g, disc);
+    }
 
-    g.setColour (colours::white);
+    g.setColour (colours::thumbBody);
     g.fillEllipse (thumb);
 
-    g.setColour (colours::ink);
+    g.setColour (colours::thumbDot);
     g.fillEllipse (juce::Rectangle<float> (6.0f, 6.0f).withCentre (thumb.getCentre()));
 }
 
@@ -389,22 +317,22 @@ void drawFader (juce::Graphics& g, int x, int y, int width, int height, float sl
     const auto centre = (float) y + (float) height * 0.5f;
     const auto active = slider.isMouseOverOrDragging() || slider.isMouseButtonDown();
 
-    g.setColour (colours::ctrl.withAlpha (active ? 0.9f : 0.5f));
+    g.setColour (active ? colours::faderGrooveHi : colours::faderGroove);
     g.fillRoundedRectangle (cx - 1.0f, (float) y, 2.0f, (float) height, 1.0f);
 
-    g.setColour (colours::muted.withAlpha (active ? 0.9f : 0.5f));
+    g.setColour (active ? colours::faderZeroHi : colours::faderZero);
     g.fillRect (cx - 6.0f, centre - 0.5f, 12.0f, 1.0f);
 
     const auto handle = juce::Rectangle<float> ((float) FaderSlider::handleW, (float) FaderSlider::handleH)
                             .withCentre ({ cx, sliderPos });
 
-    g.setColour (active ? colours::ctrlHi : colours::ctrl);
+    g.setColour (active ? colours::faderHandleHi : colours::faderHandle);
     g.fillRoundedRectangle (handle, 3.0f);
 
-    g.setColour (active ? colours::outlineHi : colours::outline);
+    g.setColour (active ? colours::faderEdgeHi : colours::faderEdge);
     g.drawRoundedRectangle (handle.reduced (0.5f), 2.5f, 1.0f);
 
-    g.setColour (colours::low);
+    g.setColour (colours::faderMark);
     g.fillRect (handle.getX() + 1.0f, handle.getCentreY() - 0.5f, handle.getWidth() - 2.0f, 1.0f);
 }
 } // namespace
@@ -427,7 +355,7 @@ void TimabandLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int
     // The number itself is the slider's text box; this is only the hover highlight behind it.
     if (slider.isMouseOverOrDragging (true) || slider.isMouseButtonDown (true))
     {
-        g.setColour (colours::ctrl);
+        g.setColour (colours::hoverFill);
         g.fillRoundedRectangle (juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height), 3.0f);
     }
 }

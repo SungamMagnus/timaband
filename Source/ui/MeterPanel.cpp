@@ -194,7 +194,7 @@ void MeterPanel::paintBar (juce::Graphics& g, juce::Rectangle<float> r, const Ba
     g.fillRect (r.getX(), fillTop, r.getWidth(), r.getBottom() - fillTop);
 
     const auto peak = juce::jlimit (0.0f, 1.0f, (bar.peak + layout::meterFloorDb) / layout::meterFloorDb);
-    g.setColour (colours::white.withAlpha (0.9f));
+    g.setColour (colours::peakLine);
     g.fillRect (r.getX(), r.getY() + (1.0f - peak) * (r.getHeight() - 1.0f), r.getWidth(), 1.0f);
 
     g.restoreState();

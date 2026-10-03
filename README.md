@@ -56,7 +56,7 @@ cmake --build build --config Release --target dsp_check -j8
 `docs/panel.png` (the mockup's default state), `docs/panel-solo.png` (mid soloed,
 high muted) and `docs/panel-bypass.png` (low band bypassed). `ui_check` drives the
 editor's controls headlessly and checks the parameter gestures, link bands, the
-crossover handles, the gain faders and the spectrum maths.
+crossover handles, the curve buttons, the gain faders and the spectrum maths.
 
 ```sh
 cmake --build build --config Release --target panel_shot ui_check -j8

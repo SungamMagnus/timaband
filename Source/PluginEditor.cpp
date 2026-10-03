@@ -95,6 +95,7 @@ TimabandEditor::TimabandEditor (TimabandProcessor& p)
 
     content.setLookAndFeel (&lookAndFeel);
     content.setOpaque (true);
+    tooltipWindow.setLookAndFeel (&lookAndFeel);        // a sibling of content, not inside it
     addAndMakeVisible (content);
 
     leftArea.setTitle ("Controls");
@@ -224,6 +225,7 @@ TimabandEditor::TimabandEditor (TimabandProcessor& p)
 TimabandEditor::~TimabandEditor()
 {
     stopTimer();
+    tooltipWindow.setLookAndFeel (nullptr);
     content.setLookAndFeel (nullptr);
 }
 

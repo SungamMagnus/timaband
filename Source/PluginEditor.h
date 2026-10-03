@@ -65,6 +65,7 @@ private:
 
     TimabandProcessor& proc;
     timaband::ui::TimabandLookAndFeel lookAndFeel;
+    juce::TooltipWindow tooltipWindow { this };
 
     Content content;
     LeftArea leftArea;

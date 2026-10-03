@@ -136,19 +136,51 @@ public:
     float getFocusRingRadius() const override { return 3.0f; }
 };
 
-// The curve dropdown; the look-and-feel draws the curve glyph and chevron.
-class CurveBox final : public FocusVisible<juce::ComboBox>
+// One of a band's three curve buttons. The look-and-feel draws it: a grey key with
+// the curve's glyph, filled with the ToggleButton::tickColourId colour while selected.
+class CurveButton final : public juce::ToggleButton
 {
 public:
-    explicit CurveBox (int bandIndex);
+    explicit CurveButton (int curveIndex);
 
-    int getBand() const noexcept { return band; }
-
-    juce::Rectangle<float> getFocusRingBounds() const override { return getLocalBounds().toFloat(); }
-    float getFocusRingRadius() const override { return 3.0f; }
+    int getCurve() const noexcept { return curve; }
 
 private:
-    int band;
+    int curve;
+};
+
+// A band's curve choice as three buttons in one radio group, in the style of Max's
+// live.tab. The group is a single Tab stop; Left/Right (and Up/Down) move the selection.
+class CurveSelector final : public FocusVisible<juce::Component>
+{
+public:
+    static constexpr int buttonW = 44, buttonH = 30, buttonGap = 4;
+
+    explicit CurveSelector (int bandIndex);
+
+    int getSelected() const noexcept { return selected; }
+
+    // Shows a curve without calling onChange, for changes that come from the parameter.
+    void setSelected (int index);
+
+    // The fill of the selected button.
+    void setAccent (juce::Colour);
+
+    // The user picked a curve, by mouse or key.
+    std::function<void (int)> onChange;
+
+    void resized() override;
+    bool keyPressed (const juce::KeyPress&) override;
+
+    // The ring goes round the whole group rather than the selected button, so it stays put.
+    juce::Rectangle<float> getFocusRingBounds() const override;
+    float getFocusRingRadius() const override { return 2.0f; }
+
+private:
+    void select (int index, bool notify);
+
+    juce::OwnedArray<CurveButton> buttons;
+    int selected = 0;
 };
 
 } // namespace timaband::ui

@@ -2,6 +2,10 @@
 // checks the layout without a host. Writes panel.png (the mockup's default state),
 // panel-solo.png (mid soloed, high muted) and panel-bypass.png (low band bypassed)
 // into the directory given as argv[1].
+//
+// Built with TIMABAND_THEME_SUNGAM=1 (panel_shot_sungam) it renders the Sungam recolour
+// instead: plugin-sungam.png (the default state) and plugin-sungam-states.png (mid
+// soloed, high muted and the low band bypassed, all at once).
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <cmath>
@@ -12,6 +16,10 @@
 
 #ifndef TIMABAND_DOCS_DIR
  #define TIMABAND_DOCS_DIR "."
+#endif
+
+#ifndef TIMABAND_THEME_SUNGAM
+ #define TIMABAND_THEME_SUNGAM 0
 #endif
 
 namespace
@@ -182,6 +190,7 @@ int main (int argc, char** argv)
     juce::ScopedJuceInitialiser_GUI init;
 
     const juce::File outDir (argc > 1 ? juce::String (argv[1]) : juce::String (TIMABAND_DOCS_DIR));
+    outDir.createDirectory();
 
     TimabandProcessor proc;
     proc.setRateAndBufferSizeDetails (sampleRate, blockSize);
@@ -212,6 +221,16 @@ int main (int argc, char** argv)
     const auto audio = makeDrums (3.0);
     const size_t blocks = 192;      // 2.048 s
     play (proc, *editor, audio, 0, blocks);
+   #if TIMABAND_THEME_SUNGAM
+    save (*editor, outDir.getChildFile ("plugin-sungam.png"));
+
+    // Every state at once: mid soloed (so low and high dim), high muted, low bypassed.
+    setValue (proc, timaband::pid::solo[1], 1.0f);
+    setValue (proc, timaband::pid::mute[2], 1.0f);
+    setValue (proc, timaband::pid::bandBypass[0], 1.0f);
+    play (proc, *editor, audio, blocks, 6);
+    save (*editor, outDir.getChildFile ("plugin-sungam-states.png"));
+   #else
     save (*editor, outDir.getChildFile ("panel.png"));
 
     // Mid soloed, high muted: the dimmed columns and hatched regions.
@@ -227,6 +246,7 @@ int main (int argc, char** argv)
     setValue (proc, timaband::pid::bandBypass[0], 1.0f);
     play (proc, *editor, audio, blocks + 6, 6);
     save (*editor, outDir.getChildFile ("panel-bypass.png"));
+   #endif
 
     return 0;
 }

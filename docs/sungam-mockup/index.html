@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tímaband — Sungam panel mockup</title>
+<style>
+/* ── Sungam tokens, inlined (colors, typography, spacing, effects) ─────────── */
+:root{
+  --paper:#f0ece2; --ink:#1a1a17;
+  --ink-08:rgba(26,26,23,.08); --ink-13:rgba(26,26,23,.13); --ink-18:rgba(26,26,23,.18);
+  --ink-22:rgba(26,26,23,.22); --ink-28:rgba(26,26,23,.28); --ink-32:rgba(26,26,23,.32);
+  --ink-38:rgba(26,26,23,.38); --ink-45:rgba(26,26,23,.45); --ink-55:rgba(26,26,23,.55);
+  --ink-62:rgba(26,26,23,.62); --ink-70:rgba(26,26,23,.70); --ink-78:rgba(26,26,23,.78);
+  --ink-85:rgba(26,26,23,.85);
+  --coral:#ed8159; --teal:#52b0a4; --steel:#4f7ea8; --violet:#6b5bc4;
+  /* --amber and --lilac are deliberately not used: no limiter, no trims */
+  --font-mono:Menlo,Monaco,"DejaVu Sans Mono","Courier New",monospace;
+  --text-2xs:7.5px; --text-xs:8px; --text-sm:8.5px; --text-base:9.5px; --text-md:10.5px; --text-xl:16px;
+  --tracking-wide:.05em; --tracking-wordmark:.28em;
+  --knob-sweep-deg:317.2; --knob-arc-start-deg:111.4;
+  --fader-track-w:6px; --fader-handle-w:14px; --fader-handle-h:4px; --fader-travel:130px;
+  --terminal-r:7px; --latch-h:17px;
+}
+html,body{margin:0;padding:0;background:var(--paper)}
+svg{display:block;font-family:var(--font-mono)}
+</style>
+</head>
+<body>
+<div id="panel"></div>
+<script>
+/* Static Tímaband panel, 1080x640 design px. This script only generates SVG geometry
+   (knob arcs, spectrum, curve glyphs); nothing is interactive. */
+const W = 1080, H = 640;
+const P = [];
+const add = s => P.push(s);
+const n = v => Math.round(v * 100) / 100;
+const CW = 0.602;                                   // Menlo advance, em
+const tw = (s, size, trk = 0) => [...s].length * size * (CW + trk);
+
+const PAPER = 'var(--paper)', INK = 'var(--ink)';
+const CORAL = 'var(--coral)', TEAL = 'var(--teal)', STEEL = 'var(--steel)', VIOLET = 'var(--violet)';
+
+function text(x, y, s, o = {}) {
+  const { size = 8.5, fill = 'var(--ink-62)', anchor = 'start', bold = false, trk = .02 } = o;
+  add(`<text x="${n(x)}" y="${n(y)}" font-size="${size}" fill="${fill}" text-anchor="${anchor}"` +
+      `${bold ? ' font-weight="700"' : ''} letter-spacing="${trk}em">${s}</text>`);
+}
+const fmt = (v, dp = 1, unit = ' dB') => (v < 0 ? '−' : '+') + Math.abs(v).toFixed(dp) + unit;
+
+/* ── primitives (geometry lifted from components/*.jsx) ─────────────────────── */
+const SW = 158.6 * Math.PI / 180;                   // half of the 317.2 deg sweep
+const angleFor = v => -SW + 2 * SW * Math.max(0, Math.min(1, v)) - Math.PI / 2;
+const pt = (cx, cy, r, a) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+function arc(cx, cy, r, a, b) {                     // sweep flag follows direction (Knob.jsx fixes it at 1)
+  if (Math.abs(b - a) < 1e-4) return '';
+  const [x1, y1] = pt(cx, cy, r, a), [x2, y2] = pt(cx, cy, r, b);
+  return `M${n(x1)} ${n(y1)}A${r} ${r} 0 ${Math.abs(b - a) > Math.PI ? 1 : 0} ${b > a ? 1 : 0} ${n(x2)} ${n(y2)}`;
+}
+
+function knob(cx, cy, r, value, min, max, color) {  // bipolar: arc grows from noon
+  const norm = (value - min) / (max - min);
+  const aS = angleFor(0), aE = angleFor(1), aN = angleFor(norm), noon = -Math.PI / 2;
+  const track = r + 4.5, w = r >= 24 ? 3.4 : r >= 16 ? 2.8 : 2.2;
+  const [px, py] = pt(cx, cy, r * .78, aN), [qx, qy] = pt(cx, cy, r * .16, aN);
+  const [t1x, t1y] = pt(cx, cy, r + 1.5, aS), [t2x, t2y] = pt(cx, cy, r + 6.5, aS);
+  add(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${PAPER}" stroke="var(--ink-38)" stroke-width="1.2"/>`);
+  add(`<path d="${arc(cx, cy, track, aS, aE)}" stroke="var(--ink-13)" stroke-width="${w}" fill="none"/>`);
+  add(`<path d="${arc(cx, cy, track, noon, aN)}" stroke="${color}" stroke-width="${w}" fill="none"/>`);
+  add(`<line x1="${n(qx)}" y1="${n(qy)}" x2="${n(px)}" y2="${n(py)}" stroke="var(--ink-85)" stroke-width="${r >= 24 ? 2 : 1.5}"/>`);
+  add(`<line x1="${n(t1x)}" y1="${n(t1y)}" x2="${n(t2x)}" y2="${n(t2y)}" stroke="var(--ink-28)" stroke-width="1"/>`);
+}
+
+function latch(x, cy, w, label, color, on = false, size = 8) {   // outer box w x 17, 1.2px border inside
+  const y = cy - 8.5;
+  add(`<rect x="${x + .6}" y="${y + .6}" width="${w - 1.2}" height="${17 - 1.2}" fill="${on ? color : PAPER}" ` +
+      `stroke="${on ? color : 'var(--ink-28)'}" stroke-width="1.2"/>`);
+  text(x + w / 2, cy + size * .36, label, { size, fill: on ? PAPER : 'var(--ink-62)', anchor: 'middle' });
+}
+
+function curveGlyph(kind) {                         // 18 x 9 polyline, origin bottom-left
+  const f = { exp: t => (Math.exp(4 * t) - 1) / (Math.exp(4) - 1),
+              lin: t => t,
+              log: t => Math.log(1 + 20 * t) / Math.log(21) }[kind];
+  const pts = [];
+  for (let i = 0; i <= 24; i++) { const t = i / 24; pts.push([n(t * 18 - 9), n(4.5 - f(t) * 9)]); }
+  return pts.map(p => p.join(',')).join(' ');
+}
+function curveButton(x, cy, kind, active) {         // 28 x 17 Latch-style, glyph only
+  latch(x, cy, 28, '', VIOLET, active);
+  add(`<polyline transform="translate(${x + 14} ${cy})" points="${curveGlyph(kind)}" fill="none" ` +
+      `stroke="${active ? PAPER : 'var(--ink-62)'}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>`);
+}
+
+function meterBipolar(x, cy, v, color, w = 70, h = 9) {           // Meter.jsx, bipolar
+  const y = cy - h / 2, c = x + w / 2;
+  add(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${PAPER}" stroke="var(--ink-28)" stroke-width="1"/>`);
+  add(`<rect x="${v >= 0 ? c : c + v * w / 2}" y="${y + 1}" width="${n(Math.abs(v) * w / 2)}" height="${h - 2}" fill="${color}" opacity=".55"/>`);
+  add(`<rect x="${c - .5}" y="${y - 2}" width="1" height="${h + 4}" fill="${color}" opacity=".5"/>`);
+}
+
+function segmentMeter(cx, y, color, lit, segs = 7) {              // SegmentMeter.jsx, 16 x 6, gap 3
+  for (let i = 0; i < segs; i++) {
+    const on = segs - i <= lit;
+    add(`<rect x="${cx - 8}" y="${y + i * 9}" width="16" height="6" fill="${on ? color : PAPER}" ` +
+        `${on ? '' : 'stroke="var(--ink-22)" stroke-width="1"'}/>`);
+  }
+}
+
+function terminal(cx, cy, label) {                  // Terminal.jsx, r 7, label above
+  add(`<circle cx="${cx}" cy="${cy}" r="7" fill="${PAPER}" stroke="var(--ink-55)" stroke-width="1.3"/>`);
+  text(cx, cy - 14, label, { size: 8, anchor: 'middle' });
+}
+
+function fader(fx, cy, color, label, valueText, norm = .5, travel = 130) {   // Fader.jsx, bipolar
+  const top = cy - travel / 2, bot = cy + travel / 2, y = bot - norm * travel, origin = bot - .5 * travel;
+  for (let i = 0; i < 9; i++) {
+    const ty = top + travel * i / 8;
+    add(`<rect x="${fx - 15}" y="${ty - .5}" width="${i % 4 === 0 ? 6 : 3.5}" height="1" fill="var(--ink-13)"/>`);
+  }
+  add(`<rect x="${fx - 3}" y="${top}" width="6" height="${travel}" rx="3" fill="var(--ink-13)"/>`);
+  if (Math.abs(origin - y) > 1)
+    add(`<rect x="${fx - 3}" y="${Math.min(y, origin)}" width="6" height="${Math.abs(origin - y)}" rx="3" fill="${color}"/>`);
+  add(`<rect x="${fx + 9}" y="${origin - .5}" width="5" height="1" fill="var(--ink-32)"/>`);
+  add(`<rect x="${fx - 7}" y="${y - 2}" width="14" height="4" fill="${INK}"/>`);
+  text(fx, top - 12, label, { anchor: 'middle' });
+  text(fx, bot + 21, valueText, { size: 9.5, fill: color, bold: true, anchor: 'middle', trk: 0 });
+}
+
+function selector(x, y, opts, sel, color) {         // Selector.jsx, equal cells, 9.5px text (nearest token to its 9px default)
+  const cw = 32, h = 22;
+  add(`<rect x="${x}" y="${y}" width="${cw * 2 + 2}" height="${h}" fill="${PAPER}"/>`);
+  opts.forEach((o, i) => {
+    const cx = x + 1 + i * (cw + 1);
+    if (i === sel) add(`<rect x="${cx}" y="${y + 1}" width="${cw}" height="${h - 2}" fill="${color}"/>`);
+    text(cx + cw / 2, y + h / 2 + 9.5 * .36, o, { size: 9.5, anchor: 'middle', fill: i === sel ? PAPER : 'var(--ink-62)' });
+  });
+  add(`<rect x="${x + .5}" y="${y + .5}" width="${cw * 2 + 1}" height="${h - 1}" fill="none" stroke="var(--ink-28)" stroke-width="1"/>`);
+  add(`<line x1="${x + 1 + cw + .5}" y1="${y + 1}" x2="${x + 1 + cw + .5}" y2="${y + h - 1}" stroke="var(--ink-18)" stroke-width="1"/>`);
+}
+
+const trace = d => add(`<path d="${d}" fill="none" stroke="var(--ink-55)" stroke-width="1.4"/>`);
+const dot = (x, y) => add(`<circle cx="${x}" cy="${y}" r="3.2" fill="var(--ink-62)"/>`);
+
+/* ── layout ─────────────────────────────────────────────────────────────────── */
+const rows = [
+  { name: 'LOW',  y: 320, att:  4.5, sus: -2.0, curve: 'exp', d:  0.40 },
+  { name: 'MID',  y: 410, att:  6.0, sus: -3.5, curve: 'lin', d:  0.55 },
+  { name: 'HIGH', y: 500, att: -1.5, sus:  2.5, curve: 'log', d: -0.12 },
+];
+const COL = { byp: 212, att: 290, sus: 418, curve: 534, meter: 660, m: 800, s: 824, bus: 880, spine: 170 };
+const IN_Y = 150, OUT_Y = 410, IN_FX = 95, OUT_FX = 960;
+const AX = { l: 150, t: 40, r: 930, b: 250, x0: 151, x1: 929, floor: 237 };
+const xOf = f => AX.x0 + (AX.x1 - AX.x0) * Math.log10(f / 20) / 3;
+
+/* outer frame */
+add(`<rect width="${W}" height="${H}" fill="${PAPER}"/>`);
+add(`<rect x="14.5" y="14.5" width="${W - 29}" height="${H - 29}" fill="none" stroke="var(--ink-28)" stroke-width="1"/>`);
+
+/* ── traces (drawn first; controls sit on top and mask them) ──────────────── */
+trace(`M51 ${IN_Y}H${IN_FX - 7}`);                               // IN terminal -> fader
+trace(`M${IN_FX + 7} ${IN_Y}H${AX.l}`);                           // fader -> analyzer left edge
+trace(`M${COL.spine} ${AX.b}V500H${COL.bus}V320H${COL.spine}`);   // spine + HIGH row + sum bus + LOW row
+trace(`M${COL.spine} 410H${COL.bus}`);                            // MID row
+trace(`M${COL.bus} ${OUT_Y}H${OUT_FX - 7}`);                      // sum -> OUT fader
+trace(`M${OUT_FX + 7} ${OUT_Y}H1029`);                            // OUT fader -> OUT terminal
+dot(COL.spine, 320); dot(COL.spine, 410);                         // splits
+dot(COL.bus, OUT_Y);                                              // sum
+
+/* ── SPLIT analyzer ────────────────────────────────────────────────────────── */
+const lg2 = Math.log2;
+const gauss = (f, f0, w, a) => a * Math.exp(-Math.pow(lg2(f / f0), 2) / (2 * w * w));
+const hash = i => { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+function spectrumDb(f, i) {                          // drum bus: kick, snare body, crack, hats, anti-alias roll-off
+  let d = -3.8 * lg2(f / 100);
+  d += gauss(f, 58, .45, 10) + gauss(f, 115, .4, 3.5) + gauss(f, 190, .5, 4.5) + gauss(f, 420, .6, 1.5)
+     + gauss(f, 3200, .75, 3.2) + gauss(f, 5200, .35, 1.8) + gauss(f, 9500, .6, 4.5);
+  if (f < 38) d -= Math.pow(lg2(38 / f), 2) * 14;
+  if (f > 13000) d -= Math.pow(lg2(f / 13000), 2) * 14;
+  const amp = .6 + 4.2 * smooth(1800, 9000, f);      // jaggier above ~2 kHz
+  d += .8 * Math.sin(i * .21) + .55 * Math.sin(i * .057 + 1.3);
+  d += (hash(i) - .5) * 2 * amp + (hash(i + 977) - .5) * amp * .7;
+  return d;
+}
+const NPT = 519, pts = [];
+for (let i = 0; i < NPT; i++) {
+  const f = 20 * Math.pow(10, 3 * i / (NPT - 1));
+  const x = AX.x0 + (AX.x1 - AX.x0) * i / (NPT - 1);
+  pts.push([n(x), n(AX.floor - (spectrumDb(f, i) + 40) / 56 * 140)]);
+}
+const line = pts.map(p => p.join(',')).join('L');
+
+add(`<rect x="${AX.l + .5}" y="${AX.t + .5}" width="${AX.r - AX.l - 1}" height="${AX.b - AX.t - 1}" fill="${PAPER}" ` +
+    `stroke="${TEAL}" stroke-opacity=".45" stroke-width="1"/>`);
+// grid + labels
+[[60, '60'], [100, '100'], [300, '300'], [600, '600'], [1000, '1k'], [3000, '3k'], [6000, '6k'], [10000, '10k']].forEach(([f, l]) => {
+  const x = n(xOf(f));
+  add(`<line x1="${x}" y1="${AX.t + 1}" x2="${x}" y2="${AX.floor}" stroke="var(--ink-13)" stroke-width="1"/>`);
+  text(x, 246, l, { size: 8, fill: 'var(--ink-38)', anchor: 'middle', trk: 0 });
+});
+text(925, 246, 'Hz', { size: 8, fill: 'var(--ink-38)', anchor: 'end', trk: 0 });
+add(`<line x1="${AX.x0}" y1="${AX.floor + .5}" x2="${AX.x1}" y2="${AX.floor + .5}" stroke="var(--ink-13)" stroke-width="1"/>`);
+// spectrum
+add(`<path d="M${AX.x0},${AX.floor}L${line}L${AX.x1},${AX.floor}Z" fill="var(--ink-08)"/>`);
+add(`<path d="M${line}" fill="none" stroke="var(--ink-45)" stroke-width="1" stroke-linejoin="round"/>`);
+// crossovers
+const xo = [{ f: 180, label: '180 Hz' }, { f: 2400, label: '2.40 kHz' }];
+xo.forEach(c => { c.x = n(xOf(c.f)); });
+xo.forEach(c => add(`<line x1="${c.x}" y1="${AX.t + 1}" x2="${c.x}" y2="${AX.b - 1}" stroke="${TEAL}" stroke-width="1.2"/>`));
+xo.forEach(c => {
+  add(`<rect x="${c.x - 2}" y="62" width="4" height="16" rx="2" fill="${TEAL}"/>`);
+  add(`<rect x="${c.x + 6.5}" y="62.5" width="58" height="15" fill="${PAPER}" stroke="${TEAL}" stroke-width="1"/>`);
+  text(c.x + 6.5 + 29, 70 + 9.5 * .36, c.label, { size: 9.5, fill: TEAL, bold: true, anchor: 'middle', trk: 0 });
+});
+// region labels
+[['LOW', AX.x0 + 6], ['MID', xo[0].x + 6.5], ['HIGH', xo[1].x + 6.5]].forEach(([l, x]) => text(x, 56, l, { size: 8.5 }));
+// PRE | POST
+selector(856, 48, ['PRE', 'POST'], 1, TEAL);
+// title inset in the rule
+add(`<rect x="${AX.l + 14}" y="34" width="${n(12 + tw('SPLIT', 8.5, .04))}" height="13" fill="${PAPER}"/>`);
+text(AX.l + 20, 43.4, 'SPLIT', { size: 8.5, fill: TEAL, trk: .04 });
+
+/* ── input ─────────────────────────────────────────────────────────────────── */
+terminal(44, IN_Y, 'IN');
+segmentMeter(44, IN_Y + 22, CORAL, 3);
+fader(IN_FX, IN_Y, CORAL, 'IN GAIN', fmt(0));
+
+/* ── band rows ─────────────────────────────────────────────────────────────── */
+text(COL.att, 284, 'ATTACK', { anchor: 'middle' });
+text(COL.sus, 284, 'SUSTAIN', { anchor: 'middle' });
+text(COL.curve + 45, 284, 'CURVE', { anchor: 'middle' });
+text(COL.meter + 35, 284, 'Δ GAIN', { anchor: 'middle' });
+
+rows.forEach(r => {
+  const y = r.y;
+  text(COL.spine + 8, y - 7, r.name, { size: 9.5 });
+  latch(COL.byp, y, 28, 'BYP', CORAL, false);
+  knob(COL.att, y, 20, r.att, -15, 15, CORAL);
+  text(COL.att + 32, y - 6, fmt(r.att), { size: 10.5, fill: CORAL, bold: true, trk: 0 });
+  knob(COL.sus, y, 20, r.sus, -15, 15, CORAL);
+  text(COL.sus + 32, y - 6, fmt(r.sus), { size: 10.5, fill: CORAL, bold: true, trk: 0 });
+  ['exp', 'lin', 'log'].forEach((k, i) => curveButton(COL.curve + i * 31, y, k, k === r.curve));
+  meterBipolar(COL.meter, y, r.d, VIOLET);
+  text(COL.meter + 78, y - 6, fmt(r.d, 2, ''), { size: 9.5, fill: VIOLET, bold: true, trk: 0 });
+  latch(COL.m, y, 18, 'M', CORAL, false, 7.5);
+  latch(COL.s, y, 18, 'S', CORAL, false, 7.5);
+});
+
+/* ── sum and output ────────────────────────────────────────────────────────── */
+fader(OUT_FX, OUT_Y, STEEL, 'OUT GAIN', fmt(0));
+terminal(1036, OUT_Y, 'OUT');
+segmentMeter(1036, OUT_Y + 22, STEEL, 3);
+latch(1014, 524, 44, 'DELTA', STEEL, false);
+latch(1014, 548, 44, 'BYPASS', STEEL, false);
+
+/* ── global options ────────────────────────────────────────────────────────── */
+latch(36, 585, 62, 'LOOKAHEAD', INK, true);
+latch(106, 585, 74, 'STEREO LINK', INK, true);
+latch(188, 585, 68, 'LINK BANDS', INK, false);
+
+/* ── wordmark ──────────────────────────────────────────────────────────────── */
+add(`<text x="1050.5" y="606" font-size="16" font-weight="700" fill="var(--ink-55)" text-anchor="end" letter-spacing=".28em">TÍMABAND</text>`);
+
+document.getElementById('panel').innerHTML =
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${P.join('')}</svg>`;
+</script>
+</body>
+</html>

@@ -335,21 +335,161 @@ int main()
     check (real (proc, timaband::pid::bypass) > 0.5f, "the Bypass button drives the bypass parameter");
     check (near (findByTitle (*editor, "Controls")->getAlpha(), 0.7, 0.01), "bypass draws the left area at 70 % alpha");
 
-    // Curve dropdown.
-    auto* curve = static_cast<juce::ComboBox*> (findByTitle (*editor, "Mid band detector curve"));
-    curve->setSelectedItemIndex (2, juce::sendNotificationSync);
-    check (near (real (proc, timaband::pid::curve[1]), 2.0, 1.0e-3), "the curve dropdown drives the curve parameter");
+    // Curve buttons: one radio group per band, bound to the curve parameter.
+    {
+        using timaband::ui::CurveSelector;
+        namespace colours = timaband::ui::colours;
+
+        auto* group = static_cast<CurveSelector*> (findByTitle (*editor, "Mid band detector curve"));
+        const auto button = [&editor] (const juce::String& band, int index)
+        {
+            return static_cast<juce::Button*> (findByTitle (*editor, band + " curve: " + timaband::curveNames[index]));
+        };
+
+        // The index of the lit button, or -1 unless exactly one is lit.
+        const auto lit = [&button] (const juce::String& band)
+        {
+            auto found = -1, count = 0;
+
+            for (int i = 0; i < 3; ++i)
+                if (button (band, i)->getToggleState())
+                {
+                    found = i;
+                    ++count;
+                }
+
+            return count == 1 ? found : -1;
+        };
+
+        const auto& id = timaband::pid::curve[1];
+        const auto curveIndex = indexOf (id);
+        const auto oneGesture = [&] { return log.begins[curveIndex] == 1 && log.ends[curveIndex] == 1; };
+        const auto noGesture = [&] { return log.begins[curveIndex] == 0 && log.ends[curveIndex] == 0; };
+
+        auto allFound = group != nullptr;
+
+        for (const auto* band : timaband::bandNames)
+            for (int i = 0; i < 3; ++i)
+                allFound = allFound && button (band, i) != nullptr
+                             && button (band, i)->getTooltip() == timaband::curveNames[i];
+
+        check (allFound, "each band has Exponential, Linear and Logarithmic buttons, titled and with a tooltip");
+
+        if (! allFound)
+            return 1;
+
+        check (group->getWantsKeyboardFocus() && ! button ("Mid", 0)->getWantsKeyboardFocus(),
+               "the curve group is one Tab stop");
+        check (near (group->getFocusRingBounds().getWidth(), 3 * 44 + 2 * 4, 0.5) && near (group->getFocusRingBounds().getHeight(), 30, 0.5),
+               "its focus ring goes round the three buttons");
+
+        // The parameter changing under the editor lights the matching button.
+        auto followsParameter = true;
+
+        for (int v : { 0, 2, 1, 0 })
+        {
+            set (proc, id, (float) v);
+            followsParameter = followsParameter && lit ("Mid") == v && group->getSelected() == v;
+        }
+
+        check (followsParameter, "a host change of the curve parameter lights the matching button");
+
+        // Clicking a button sets the parameter in one gesture, and leaves the other bands alone.
+        set (proc, timaband::pid::curve[0], 1.0f);
+        set (proc, timaband::pid::curve[2], 1.0f);
+        log.begins.clear(); log.ends.clear();
+        click (button ("Mid", 2));
+        check (near (real (proc, id), 2.0, 1.0e-3) && lit ("Mid") == 2, "clicking Logarithmic sets the curve parameter and lights that button");
+        check (oneGesture(), "a click is one begin/end gesture");
+        check (near (real (proc, timaband::pid::curve[0]), 1.0, 1.0e-3) && near (real (proc, timaband::pid::curve[2]), 1.0, 1.0e-3)
+                 && lit ("Low") == 1 && lit ("High") == 1,
+               "the other bands' curves and buttons are untouched");
+
+        log.begins.clear(); log.ends.clear();
+        click (button ("Mid", 2));
+        check (noGesture() && lit ("Mid") == 2, "clicking the lit button changes nothing");
+
+        click (button ("Mid", 0));
+        check (near (real (proc, id), 0.0, 1.0e-3) && lit ("Mid") == 0, "clicking Exponential sets the curve parameter and lights that button");
+
+        // Keys move the selection, one gesture per change, and stop at the ends.
+        set (proc, id, 1.0f);
+        log.begins.clear(); log.ends.clear();
+        auto handled = group->keyPressed (juce::KeyPress (juce::KeyPress::rightKey));
+        check (handled && near (real (proc, id), 2.0, 1.0e-3) && lit ("Mid") == 2, "Right moves the selection to Logarithmic");
+        check (oneGesture(), "a key press is one begin/end gesture");
+
+        log.begins.clear(); log.ends.clear();
+        handled = group->keyPressed (juce::KeyPress (juce::KeyPress::rightKey));
+        check (handled && noGesture() && near (real (proc, id), 2.0, 1.0e-3) && lit ("Mid") == 2, "Right at the last button changes nothing");
+
+        handled = group->keyPressed (juce::KeyPress (juce::KeyPress::leftKey));
+        check (handled && near (real (proc, id), 1.0, 1.0e-3) && lit ("Mid") == 1, "Left moves the selection back to Linear");
+        handled = group->keyPressed (juce::KeyPress (juce::KeyPress::upKey));
+        check (handled && near (real (proc, id), 0.0, 1.0e-3) && lit ("Mid") == 0, "Up moves it back to Exponential");
+
+        log.begins.clear(); log.ends.clear();
+        handled = group->keyPressed (juce::KeyPress (juce::KeyPress::leftKey));
+        check (handled && noGesture() && lit ("Mid") == 0, "Left at the first button changes nothing");
+
+        handled = group->keyPressed (juce::KeyPress (juce::KeyPress::downKey));
+        check (handled && near (real (proc, id), 1.0, 1.0e-3) && lit ("Mid") == 1, "Down moves it forward to Linear");
+        check (! group->keyPressed (juce::KeyPress ('a')) && near (real (proc, id), 1.0, 1.0e-3), "other keys are left alone");
+
+        // Looks: grey when idle, the band colour when selected, a light grey once the band is bypassed.
+        // A triggered click leaves its button drawn as pressed until it has painted once
+        // and a timer has run, so let that happen first.
+        group->createComponentSnapshot (group->getLocalBounds());
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (200);
+
+        const auto fillAt = [&] (int index)
+        {
+            const auto image = group->createComponentSnapshot (group->getLocalBounds(), true, 1.0f);
+            return image.getPixelAt (index * (44 + 4) + 5, 4 + 5);
+        };
+
+        set (proc, id, 2.0f);
+        check (fillAt (2) == colours::mid && fillAt (0) == colours::tabIdle && fillAt (1) == colours::tabIdle,
+               "the selected button is filled with the band colour, the others are grey");
+        set (proc, id, 1.0f);
+        check (fillAt (1) == colours::mid && fillAt (2) == colours::tabIdle, "its fill follows the selection");
+
+        set (proc, timaband::pid::bandBypass[1], 1.0f);
+        check (fillAt (1) == colours::tabBypassed && fillAt (0) == colours::tabIdle, "a bypassed band's selected button turns light grey");
+        set (proc, timaband::pid::bandBypass[1], 0.0f);
+        check (fillAt (1) == colours::mid, "and goes back to the band colour");
+    }
 
     // UI-only state.
     auto* segmentPre = findByTitle (*editor, "Pre");
+    auto* segmentPost = findByTitle (*editor, "Post");
+    const auto segmentsOn = [&]
+    {
+        return (int) static_cast<juce::Button*> (segmentPre)->getToggleState() + (int) static_cast<juce::Button*> (segmentPost)->getToggleState();
+    };
+
     click (segmentPre);
     check (! (bool) proc.apvts.state.getProperty (timaband::uiState::analyzerPost), "Pre selects the pre-fader analyzer");
+    check (segmentsOn() == 1 && static_cast<juce::Button*> (segmentPre)->getToggleState(), "after clicking Pre only Pre is lit");
+
+    click (segmentPost);
+    check ((bool) proc.apvts.state.getProperty (timaband::uiState::analyzerPost), "Post selects the post-fader analyzer");
+    check (segmentsOn() == 1 && static_cast<juce::Button*> (segmentPost)->getToggleState(), "after clicking Post only Post is lit");
+
+    click (segmentPre);
+    click (segmentPre);
+    check (! (bool) proc.apvts.state.getProperty (timaband::uiState::analyzerPost) && segmentsOn() == 1, "clicking the lit segment again changes nothing");
 
     // Selecting a band by clicking in its column.
     // (The column listens to its children's presses as a mouse listener; here it gets one directly.)
     auto* highColumn = findByTitle (*editor, "High band");
     highColumn->mouseDown (makeEvent (*highColumn, { 22.0f, 40.0f }, { 22.0f, 40.0f }));
     check ((int) proc.apvts.state.getProperty (timaband::uiState::selectedBand) == 2, "pressing inside the high column selects the high band");
+
+    // A press that starts on a curve button reaches the column the same way.
+    auto* lowCurveButton = findByTitle (*editor, "Low curve: Linear");
+    findByTitle (*editor, "Low band")->mouseDown (makeEvent (*lowCurveButton, { 22.0f, 15.0f }, { 22.0f, 15.0f }));
+    check ((int) proc.apvts.state.getProperty (timaband::uiState::selectedBand) == 0, "pressing a curve button selects its band");
 
     // Per-band bypass: the power button drives the parameter and greys the column.
     click (findByTitle (*editor, "Low band bypass"));
